@@ -16,9 +16,11 @@ npx add-skill ichuan/skills
 
 # Install a specific skill
 npx add-skill ichuan/skills --skill roadmap-management
+npx add-skill ichuan/skills --skill pre-commit-review
 
 # Install globally (available in all projects)
 npx add-skill ichuan/skills --skill roadmap-management --global
+npx add-skill ichuan/skills --skill pre-commit-review --global
 ```
 
 ### Manual Installation
@@ -29,10 +31,12 @@ git clone https://github.com/ichuan/skills.git
 
 # Copy to global skills directory
 cp -r skills/skills/roadmap-management ~/.claude/skills/
+cp -r skills/skills/pre-commit-review ~/.claude/skills/
 
 # Or copy to project-local directory
 mkdir -p ./.claude/skills
 cp -r skills/skills/roadmap-management ./.claude/skills/
+cp -r skills/skills/pre-commit-review ./.claude/skills/
 ```
 
 ## Skills
@@ -61,6 +65,32 @@ Minimalist project roadmap management based on position-based priority system.
 ```
 
 **Details:** See [skills/roadmap-management](./skills/roadmap-management)
+
+### pre-commit-review
+
+Comprehensive code review for uncommitted changes before git commit.
+
+**Use Cases:**
+- Pre-commit code validation
+- Security vulnerability detection
+- Performance issue identification
+- Code quality assessment
+
+**Features:**
+- 🔴 **Critical Issues**: Security vulnerabilities, data loss risks, system crashes
+- 🟡 **Warnings**: Performance problems, maintainability issues, potential bugs
+- 🔵 **Info**: Code style, optimizations, documentation suggestions
+- 📋 **Comprehensive Checklist**: Security, performance, quality, error handling
+- 🎯 **Actionable Solutions**: Specific fix recommendations for each issue
+
+**Usage:**
+```
+"Review my changes before commit"
+"Check my code for issues"
+"Code review before committing"
+```
+
+**Details:** See [skills/pre-commit-review](./skills/pre-commit-review)
 
 ## Usage
 
@@ -99,6 +129,7 @@ See [add-skill documentation](https://github.com/vercel-labs/add-skill#available
 ```bash
 # Reinstall to update
 npx add-skill ichuan/skills --skill roadmap-management
+npx add-skill ichuan/skills --skill pre-commit-review
 ```
 
 ### Uninstall Skills
@@ -106,9 +137,11 @@ npx add-skill ichuan/skills --skill roadmap-management
 ```bash
 # Global uninstall
 rm -rf ~/.claude/skills/roadmap-management
+rm -rf ~/.claude/skills/pre-commit-review
 
 # Local uninstall
 rm -rf ./.claude/skills/roadmap-management
+rm -rf ./.claude/skills/pre-commit-review
 ```
 
 ## License
