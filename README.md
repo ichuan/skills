@@ -4,7 +4,7 @@ A collection of reusable skill sets for AI coding agents like Claude Code, Curso
 
 ## Overview
 
-This repository contains Agent Skills that extend AI coding assistants with specialized capabilities. All skills follow the standard Agent Skills specification and can be installed using `npx add-skill`.
+This repository contains Agent Skills that extend AI coding assistants with specialized capabilities. All skills follow the standard Agent Skills specification and can be installed using `npx skills add`.
 
 ## Installation
 
@@ -12,15 +12,15 @@ This repository contains Agent Skills that extend AI coding assistants with spec
 
 ```bash
 # Install all skills
-npx add-skill ichuan/skills
+npx skills add ichuan/skills
 
 # Install a specific skill
-npx add-skill ichuan/skills --skill roadmap-management
-npx add-skill ichuan/skills --skill pre-commit-review
+npx skills add ichuan/skills --skill roadmap-management
+npx skills add ichuan/skills --skill pre-commit-review
 
 # Install globally (available in all projects)
-npx add-skill ichuan/skills --skill roadmap-management --global
-npx add-skill ichuan/skills --skill pre-commit-review --global
+npx skills add ichuan/skills --skill roadmap-management --global
+npx skills add ichuan/skills --skill pre-commit-review --global
 ```
 
 ### Manual Installation
@@ -115,7 +115,7 @@ If Claude starts executing the operation, the installation was successful.
 | OpenCode | `.opencode/skills/` | `~/.config/opencode/skills/` |
 | GitHub Copilot | `.github/skills/` | `~/.copilot/skills/` |
 
-See [add-skill documentation](https://github.com/vercel-labs/add-skill#available-agents) for more supported agents.
+See [skills documentation](https://github.com/vercel-labs/skills#available-agents) for more supported agents.
 
 ### Global vs Local Installation
 
@@ -128,8 +128,8 @@ See [add-skill documentation](https://github.com/vercel-labs/add-skill#available
 
 ```bash
 # Reinstall to update
-npx add-skill ichuan/skills --skill roadmap-management
-npx add-skill ichuan/skills --skill pre-commit-review
+npx skills add ichuan/skills --skill roadmap-management
+npx skills add ichuan/skills --skill pre-commit-review
 ```
 
 ### Uninstall Skills
@@ -151,5 +151,5 @@ MIT License - see [LICENSE](LICENSE) file for details.
 ## Links
 
 - [Agent Skills Specification](https://github.com/anthropics/skills)
-- [add-skill Tool](https://github.com/vercel-labs/add-skill)
+- [skills Tool](https://github.com/vercel-labs/skills)
 - [Claude Code Documentation](https://github.com/anthropics/claude-code)
