@@ -98,21 +98,21 @@ Comprehensive code review for uncommitted changes before git commit.
 
 ### deploy-caddy-reverse-proxy
 
-在远程服务器上自动部署 Caddy 反向代理，配置 SSL 证书和 systemd 服务。
+Automatically deploy Caddy reverse proxy on remote servers with SSL certificate and systemd service configuration.
 
 **Use Cases:**
-- 为本地 web 服务配置反向代理
-- 自动获取和管理 Let's Encrypt SSL 证书
-- 配置 systemd 服务实现开机自启
-- 支持 HTTP/WebSocket 流量代理
+- Configure reverse proxy for local web services
+- Automatically obtain and manage Let's Encrypt SSL certificates
+- Set up systemd service with auto-start on boot
+- Proxy HTTP/WebSocket traffic
 
 **Features:**
-- 🔒 **自动 SSL**: Let's Encrypt 证书自动获取和续期
-- 🔄 **反向代理**: HTTP/WebSocket 流量代理到本地服务
-- ⚙️ **Systemd 集成**: 服务自动启动和崩溃重启
-- 🎯 **智能适配**: 自动检测系统环境并选择最佳配置
-- 📋 **交互式配置**: 通过问答收集部署参数
-- ✅ **部署验证**: 自动检查证书、端口、HTTPS 访问
+- 🔒 **Automatic SSL**: Let's Encrypt certificate acquisition and auto-renewal
+- 🔄 **Reverse Proxy**: Proxy HTTP/WebSocket traffic to local services
+- ⚙️ **Systemd Integration**: Auto-start and crash recovery
+- 🎯 **Smart Detection**: Automatically detect system environment and choose optimal configuration
+- 📋 **Interactive Configuration**: Collect deployment parameters through Q&A
+- ✅ **Deployment Verification**: Automatically verify certificates, ports, and HTTPS access
 
 **Usage:**
 ```
