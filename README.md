@@ -17,10 +17,12 @@ npx skills add ichuan/skills
 # Install a specific skill
 npx skills add ichuan/skills --skill roadmap-management
 npx skills add ichuan/skills --skill pre-commit-review
+npx skills add ichuan/skills --skill deploy-caddy-reverse-proxy
 
 # Install globally (available in all projects)
 npx skills add ichuan/skills --skill roadmap-management --global
 npx skills add ichuan/skills --skill pre-commit-review --global
+npx skills add ichuan/skills --skill deploy-caddy-reverse-proxy --global
 ```
 
 ### Manual Installation
@@ -32,11 +34,13 @@ git clone https://github.com/ichuan/skills.git
 # Copy to global skills directory
 cp -r skills/skills/roadmap-management ~/.claude/skills/
 cp -r skills/skills/pre-commit-review ~/.claude/skills/
+cp -r skills/skills/deploy-caddy-reverse-proxy ~/.claude/skills/
 
 # Or copy to project-local directory
 mkdir -p ./.claude/skills
 cp -r skills/skills/roadmap-management ./.claude/skills/
 cp -r skills/skills/pre-commit-review ./.claude/skills/
+cp -r skills/skills/deploy-caddy-reverse-proxy ./.claude/skills/
 ```
 
 ## Skills
@@ -92,6 +96,33 @@ Comprehensive code review for uncommitted changes before git commit.
 
 **Details:** See [skills/pre-commit-review](./skills/pre-commit-review)
 
+### deploy-caddy-reverse-proxy
+
+在远程服务器上自动部署 Caddy 反向代理，配置 SSL 证书和 systemd 服务。
+
+**Use Cases:**
+- 为本地 web 服务配置反向代理
+- 自动获取和管理 Let's Encrypt SSL 证书
+- 配置 systemd 服务实现开机自启
+- 支持 HTTP/WebSocket 流量代理
+
+**Features:**
+- 🔒 **自动 SSL**: Let's Encrypt 证书自动获取和续期
+- 🔄 **反向代理**: HTTP/WebSocket 流量代理到本地服务
+- ⚙️ **Systemd 集成**: 服务自动启动和崩溃重启
+- 🎯 **智能适配**: 自动检测系统环境并选择最佳配置
+- 📋 **交互式配置**: 通过问答收集部署参数
+- ✅ **部署验证**: 自动检查证书、端口、HTTPS 访问
+
+**Usage:**
+```
+"Deploy caddy reverse proxy"
+"Setup caddy for my web service"
+"Configure caddy with SSL"
+```
+
+**Details:** See [skills/deploy-caddy-reverse-proxy](./skills/deploy-caddy-reverse-proxy)
+
 ## Usage
 
 ### Verification
@@ -138,10 +169,12 @@ npx skills add ichuan/skills --skill pre-commit-review
 # Global uninstall
 rm -rf ~/.claude/skills/roadmap-management
 rm -rf ~/.claude/skills/pre-commit-review
+rm -rf ~/.claude/skills/deploy-caddy-reverse-proxy
 
 # Local uninstall
 rm -rf ./.claude/skills/roadmap-management
 rm -rf ./.claude/skills/pre-commit-review
+rm -rf ./.claude/skills/deploy-caddy-reverse-proxy
 ```
 
 ## License

@@ -1,0 +1,77 @@
+# Caddy systemd 服务单元文件模板
+#
+# 使用说明：将 {USER} 和 {GROUP} 替换为实际的系统用户
+#
+# 常见用户：
+#   - Debian/Ubuntu: www-data
+#   - RHEL/CentOS: caddy（需手动创建）
+#   - 其他: caddy（需手动创建）
+#
+# 安装位置：/etc/systemd/system/caddy.service
+#
+# 参考：https://caddyserver.com/docs/running
+
+[Unit]
+Description=Caddy
+Documentation=https://caddyserver.com/docs/
+After=network.target network-online.target
+Requires=network-online.target
+
+[Service]
+Type=notify
+User={USER}
+Group={GROUP}
+
+# 环境变量：证书和配置存储路径
+# 关键：避免 Caddy 尝试写入用户 HOME 目录导致权限错误
+Environment=XDG_DATA_HOME=/var/lib/caddy
+Environment=XDG_CONFIG_HOME=/var/lib/caddy
+
+# 启动命令
+ExecStart=/usr/bin/caddy run --environ --config /etc/caddy/Caddyfile
+
+# 重载命令（热更新配置，不中断现有连接）
+ExecReload=/usr/bin/caddy reload --config /etc/caddy/Caddyfile --force
+
+# 停止超时时间
+TimeoutStopSec=5s
+
+# 资源限制
+LimitNOFILE=1048576
+LimitNPROC=512
+
+# 安全加固
+PrivateTmp=true
+ProtectSystem=full
+
+# 权限能力：允许非 root 用户绑定 80/443 端口
+# 如果系统不支持 AmbientCapabilities，改用 setcap：
+#   sudo setcap 'cap_net_bind_service=+ep' /usr/bin/caddy
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+
+[Install]
+WantedBy=multi-user.target
+
+# ========================================
+# 配置说明
+# ========================================
+
+# Type=notify
+#   Caddy 支持 systemd 通知机制，服务启动时会等待证书加载完成后才标记为 active
+
+# AmbientCapabilities=CAP_NET_BIND_SERVICE
+#   允许非特权用户绑定低于 1024 的端口（80/443）
+#   这是比传统 setcap 更安全的方法
+
+# Environment=XDG_DATA_HOME=/var/lib/caddy
+#   Caddy 证书存储路径，必须设置！
+#   如果不设置，Caddy 会尝试写入 $HOME/.local/share/caddy，可能导致权限错误
+
+# LimitNOFILE=1048576
+#   文件描述符限制，高并发场景下避免 "too many open files" 错误
+
+# PrivateTmp=true
+#   为服务创建私有的 /tmp 目录，提高安全性
+
+# ProtectSystem=full
+#   限制服务对系统目录的写入权限，只读挂载 /usr, /boot, /efi

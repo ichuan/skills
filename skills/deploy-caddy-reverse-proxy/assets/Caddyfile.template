@@ -1,0 +1,135 @@
+# Caddy 反向代理配置模板
+#
+# 使用说明：将 {DOMAIN} 和 {BACKEND_PORT} 替换为实际值
+#
+# 示例：
+#   {DOMAIN} = app.example.com
+#   {BACKEND_PORT} = 8000
+#
+# 更多配置选项参考：https://caddyserver.com/docs/caddyfile
+
+{DOMAIN} {
+    # 反向代理到本地服务
+    # 自动处理 WebSocket 升级（Caddy 2.x 默认支持）
+    reverse_proxy http://127.0.0.1:{BACKEND_PORT}
+
+    # 访问日志输出到标准输出（由 systemd 捕获）
+    log {
+        output stdout
+    }
+}
+
+# ========================================
+# 可选配置示例（取消注释后使用）
+# ========================================
+
+# --- 静态文件服务 + API 代理 ---
+# {DOMAIN} {
+#     # 静态文件（SPA 应用）
+#     handle /ui/* {
+#         root * /var/www/app/dist
+#         try_files {path} /index.html
+#         file_server
+#     }
+#
+#     # API 反向代理
+#     handle /api/* {
+#         reverse_proxy http://127.0.0.1:{BACKEND_PORT}
+#     }
+#
+#     log {
+#         output stdout
+#     }
+# }
+
+# --- 多服务代理 ---
+# {DOMAIN} {
+#     # 前端应用
+#     handle /app/* {
+#         reverse_proxy http://127.0.0.1:3000
+#     }
+#
+#     # 后端 API
+#     handle /api/* {
+#         reverse_proxy http://127.0.0.1:8000
+#     }
+#
+#     # WebSocket 服务
+#     handle /ws {
+#         reverse_proxy http://127.0.0.1:9000
+#     }
+#
+#     # 默认路由
+#     handle {
+#         reverse_proxy http://127.0.0.1:3000
+#     }
+#
+#     log {
+#         output stdout
+#     }
+# }
+
+# --- 添加安全头 ---
+# {DOMAIN} {
+#     reverse_proxy http://127.0.0.1:{BACKEND_PORT}
+#
+#     header {
+#         # HSTS
+#         Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+#         # 防止 XSS
+#         X-Content-Type-Options "nosniff"
+#         # 防止点击劫持
+#         X-Frame-Options "SAMEORIGIN"
+#         # 移除服务器版本信息
+#         -Server
+#     }
+#
+#     log {
+#         output stdout
+#     }
+# }
+
+# --- 多域名配置 ---
+# app.example.com {
+#     reverse_proxy http://127.0.0.1:8000
+# }
+#
+# api.example.com {
+#     reverse_proxy http://127.0.0.1:9000
+# }
+
+# --- 自定义 SSL 证书邮箱（全局配置） ---
+# {
+#     email admin@example.com
+# }
+#
+# {DOMAIN} {
+#     reverse_proxy http://127.0.0.1:{BACKEND_PORT}
+# }
+
+# --- 访问日志写入文件 ---
+# {DOMAIN} {
+#     reverse_proxy http://127.0.0.1:{BACKEND_PORT}
+#
+#     log {
+#         output file /var/log/caddy/access.log {
+#             roll_size 100mb
+#             roll_keep 10
+#             roll_keep_for 720h
+#         }
+#         format json
+#     }
+# }
+
+# --- 限流配置 ---
+# {DOMAIN} {
+#     rate_limit {
+#         zone dynamic {
+#             key {remote_host}
+#             events 100
+#             window 1m
+#         }
+#     }
+#
+#     reverse_proxy http://127.0.0.1:{BACKEND_PORT}
+# }
