@@ -27,7 +27,8 @@ This skill helps create and maintain `ROADMAP.md` files using a simple, effectiv
   🟢 Doing        → Active work (Max 2-3 items)
   🟡 Next Up      → Ordered by value/urgency
   ⚪ Backlog      → Future tasks, not urgent
-📔 Done           → Completed achievements
+📔 Done           → Recent completions (keep last 5)
+📜 CHANGELOG.md   → Full completion history
 ```
 
 ### Section Guidelines
@@ -54,18 +55,20 @@ This skill helps create and maintain `ROADMAP.md` files using a simple, effectiv
 - If untouched for 3+ months, probably deletable
 
 **Done**
-- Completed milestones and achievements
-- Keep for morale and progress tracking
-- Include version numbers when applicable
+- Keep only the last 5 completed items for recent visibility
+- Include link to CHANGELOG.md for full history
+- Format: `- [x] Description - YYYY-MM-DD`
+- Older completions should be archived to CHANGELOG.md
 
 ## Common Operations
 
 ### Initialize a New Roadmap
 
-Copy the template from `assets/ROADMAP.md` to the project root:
+Copy templates to the project root:
 
 ```bash
 cp assets/ROADMAP.md /path/to/project/ROADMAP.md
+cp assets/CHANGELOG.md /path/to/project/CHANGELOG.md
 ```
 
 ### Add a New Task
@@ -96,12 +99,33 @@ No calculation needed. Trust your judgment on what matters most.
 - **Critical (🔴 P0)**: Top of "Next Up" or insert into "Doing" immediately
 - **Minor (🟡)**: Add to "Backlog", fix when changing mental context
 
+### Archive Completed Tasks to CHANGELOG
+
+When the "Done" section has more than 5 items, archive older ones to CHANGELOG.md:
+
+1. **Extract tasks to archive**: Take items beyond the 5 most recent from "Done" section
+2. **Get commit info** (if applicable): Run `git log --all --fixed-strings --grep="<task-description>"` to find related commits
+3. **Add to CHANGELOG.md**:
+   - Group by date (format: `## [YYYY-MM-DD]`)
+   - Format: `- [x] Description - YYYY-MM-DD ([commit-hash](commit-url))`
+   - Place newer dates at the top
+4. **Clean ROADMAP.md**: Remove archived items, keep only last 5 in "Done"
+
+**Example CHANGELOG.md entry**:
+```markdown
+## [2024-01-15]
+
+- [x] #021 重构 LLM 接口层 - 2024-01-15 ([abc123f](https://github.com/user/repo/commit/abc123f))
+- [x] 集成 Gemini API - 2024-01-15
+```
+
 ### Weekly Cleanup
 
 1. Review Inbox: promote or delete each item
 2. Check Backlog: delete anything 3+ months old and untouched
 3. Ensure "Doing" has max 2-3 items
 4. Reorder "Next Up" based on current priorities
+5. Archive "Done" items to CHANGELOG.md if more than 5
 
 ## Workflow Integration
 
@@ -140,8 +164,12 @@ Before committing:
 - [ ] Multi-language i18n support
 
 ## 📔 Done
-- [x] v1.1.0 Initial framework setup
-- [x] OpenAI API integration
+> 最近完成（查看完整历史 → [CHANGELOG.md](CHANGELOG.md)）
+- [x] #021 重构 LLM 接口层 - 2024-01-15
+- [x] 集成 Gemini API - 2024-01-14
+- [x] 修复 API 超时问题 - 2024-01-13
+- [x] 添加缓存层 - 2024-01-10
+- [x] 移动端适配 - 2024-01-09
 ```
 
 ## Best Practices
@@ -158,3 +186,4 @@ Before committing:
 This skill includes:
 
 **assets/ROADMAP.md** - Template file ready to copy to any project root
+**assets/CHANGELOG.md** - Template file for tracking completion history

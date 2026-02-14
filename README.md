@@ -59,13 +59,15 @@ Minimalist project roadmap management based on position-based priority system.
 - 🟢 **Doing**: Current work (limit 2-3 items)
 - 🟡 **Next Up**: Manually ordered todo list
 - ⚪ **Backlog**: Future tasks
-- 📔 **Done**: Completed achievements
+- 📔 **Done**: Recent completions (last 5 items)
+- 📜 **CHANGELOG.md**: Full completion history with dates and commits
 
 **Usage:**
 ```
 "Create a roadmap for the current project"
 "Add this bug to roadmap"
 "Update roadmap, mark feature as complete"
+"Archive completed tasks to CHANGELOG"
 ```
 
 **Details:** See [skills/roadmap-management](./skills/roadmap-management)

@@ -23,5 +23,5 @@
 ---
 
 ## 📔 Done
-> 已完成的成就。
-- [x]
+> 最近完成（查看完整历史 → [CHANGELOG.md](CHANGELOG.md)）
+- [x] 任务描述 - YYYY-MM-DD
