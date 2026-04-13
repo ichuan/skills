@@ -18,11 +18,13 @@ npx skills add ichuan/skills
 npx skills add ichuan/skills --skill roadmap-management
 npx skills add ichuan/skills --skill pre-commit-review
 npx skills add ichuan/skills --skill deploy-caddy-reverse-proxy
+npx skills add ichuan/skills --skill searxng-search
 
 # Install globally (available in all projects)
 npx skills add ichuan/skills --skill roadmap-management --global
 npx skills add ichuan/skills --skill pre-commit-review --global
 npx skills add ichuan/skills --skill deploy-caddy-reverse-proxy --global
+npx skills add ichuan/skills --skill searxng-search --global
 ```
 
 ### Manual Installation
@@ -35,12 +37,14 @@ git clone https://github.com/ichuan/skills.git
 cp -r skills/skills/roadmap-management ~/.claude/skills/
 cp -r skills/skills/pre-commit-review ~/.claude/skills/
 cp -r skills/skills/deploy-caddy-reverse-proxy ~/.claude/skills/
+cp -r skills/skills/searxng-search ~/.claude/skills/
 
 # Or copy to project-local directory
 mkdir -p ./.claude/skills
 cp -r skills/skills/roadmap-management ./.claude/skills/
 cp -r skills/skills/pre-commit-review ./.claude/skills/
 cp -r skills/skills/deploy-caddy-reverse-proxy ./.claude/skills/
+cp -r skills/skills/searxng-search ./.claude/skills/
 ```
 
 ## Skills
@@ -125,7 +129,66 @@ Automatically deploy Caddy reverse proxy on remote servers with SSL certificate 
 
 **Details:** See [skills/deploy-caddy-reverse-proxy](./skills/deploy-caddy-reverse-proxy)
 
-## Usage
+### searxng-search
+
+Web search via a self-hosted [SearXNG](https://github.com/searxng/searxng) aggregation server.
+
+**Use Cases:**
+- Search the web from within AI agents
+- Research topics, find URLs, look up information online
+- Self-hosted, privacy-respecting alternative to commercial search APIs
+
+**Features:**
+- 🔍 **NDJSON output**: Structured `{url, title, snippet}` per result line
+- 🔑 **Bearer auth support**: Optional token for protected instances
+- 📄 **Pagination**: `--page` / `--limit` flags for deeper result sets
+- 🗂️ **`.env` auto-load**: Reads `SEARXNG_URL` / `SEARXNG_TOKEN` from `.env` in CWD if not set in environment
+
+**Usage:**
+```
+"Search the web for the latest Python 3.13 release notes"
+"Find documentation for the Caddy web server"
+"Look up recent news about LLM benchmarks"
+```
+
+**Details:** See [skills/searxng-search](./skills/searxng-search)
+
+#### Deploying SearXNG with Caddy Bearer Auth
+
+SearXNG does not ship with built-in authentication. The following Caddy snippet adds a simple Bearer token gate in front of your instance:
+
+```caddy
+# Caddyfile
+
+(auth_bearer) {
+    handle {
+        @valid_token header Authorization "Bearer {args[0]}"
+        route @valid_token {
+            reverse_proxy {args[1]} {
+                header_up Host {http.reverse_proxy.upstream.hostport}
+            }
+        }
+
+        @invalid_token not header Authorization "Bearer {args[0]}"
+        respond @invalid_token "Unauthorized" 401
+    }
+}
+
+search.example.com {
+    encode gzip
+    import auth_bearer YOUR_SECRET_TOKEN http://127.0.0.1:8001
+}
+```
+
+Replace `search.example.com`, `YOUR_SECRET_TOKEN`, and `http://127.0.0.1:8001` (the address SearXNG listens on) with your own values. Caddy will automatically provision a Let's Encrypt TLS certificate for the domain.
+
+Then configure the skill:
+
+```
+# .env (project root)
+SEARXNG_URL=https://search.example.com
+SEARXNG_TOKEN=YOUR_SECRET_TOKEN
+```
 
 ### Verification
 
@@ -163,6 +226,7 @@ See [skills documentation](https://github.com/vercel-labs/skills#available-agent
 # Reinstall to update
 npx skills add ichuan/skills --skill roadmap-management
 npx skills add ichuan/skills --skill pre-commit-review
+npx skills add ichuan/skills --skill searxng-search
 ```
 
 ### Uninstall Skills
@@ -172,11 +236,13 @@ npx skills add ichuan/skills --skill pre-commit-review
 rm -rf ~/.claude/skills/roadmap-management
 rm -rf ~/.claude/skills/pre-commit-review
 rm -rf ~/.claude/skills/deploy-caddy-reverse-proxy
+rm -rf ~/.claude/skills/searxng-search
 
 # Local uninstall
 rm -rf ./.claude/skills/roadmap-management
 rm -rf ./.claude/skills/pre-commit-review
 rm -rf ./.claude/skills/deploy-caddy-reverse-proxy
+rm -rf ./.claude/skills/searxng-search
 ```
 
 ## License
