@@ -61,7 +61,7 @@ Reviewer sub-agents 和主 session 在评估 issue 时使用此指南统一判�
 | 0.60 – 0.74 | 可疑，依赖不在 diff 内的上下文，不建议自动修复 |
 | < 0.60 | 猜测性结论，直接丢弃 |
 
-**默认处理阈值**：`confidence_threshold = 0.70`  
+**默认处理阈值**：`confidence_threshold = 0.70`
 低于阈值的 issue 进入"已知但不修"清单，不触发修复。
 
 ---
