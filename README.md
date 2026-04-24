@@ -17,6 +17,7 @@ npx skills add ichuan/skills
 # Install a specific skill
 npx skills add ichuan/skills --skill roadmap-management
 npx skills add ichuan/skills --skill pre-commit-review
+npx skills add ichuan/skills --skill iterative-code-review
 npx skills add ichuan/skills --skill deploy-caddy-reverse-proxy
 npx skills add ichuan/skills --skill searxng-search
 npx skills add ichuan/skills --skill crawl4ai-fetch
@@ -24,6 +25,7 @@ npx skills add ichuan/skills --skill crawl4ai-fetch
 # Install globally (available in all projects)
 npx skills add ichuan/skills --skill roadmap-management --global
 npx skills add ichuan/skills --skill pre-commit-review --global
+npx skills add ichuan/skills --skill iterative-code-review --global
 npx skills add ichuan/skills --skill deploy-caddy-reverse-proxy --global
 npx skills add ichuan/skills --skill searxng-search --global
 npx skills add ichuan/skills --skill crawl4ai-fetch --global
@@ -38,6 +40,7 @@ git clone https://github.com/ichuan/skills.git
 # Copy to global skills directory
 cp -r skills/skills/roadmap-management ~/.claude/skills/
 cp -r skills/skills/pre-commit-review ~/.claude/skills/
+cp -r skills/skills/iterative-code-review ~/.claude/skills/
 cp -r skills/skills/deploy-caddy-reverse-proxy ~/.claude/skills/
 cp -r skills/skills/searxng-search ~/.claude/skills/
 cp -r skills/skills/crawl4ai-fetch ~/.claude/skills/
@@ -46,6 +49,7 @@ cp -r skills/skills/crawl4ai-fetch ~/.claude/skills/
 mkdir -p ./.claude/skills
 cp -r skills/skills/roadmap-management ./.claude/skills/
 cp -r skills/skills/pre-commit-review ./.claude/skills/
+cp -r skills/skills/iterative-code-review ./.claude/skills/
 cp -r skills/skills/deploy-caddy-reverse-proxy ./.claude/skills/
 cp -r skills/skills/searxng-search ./.claude/skills/
 cp -r skills/skills/crawl4ai-fetch ./.claude/skills/
@@ -105,6 +109,32 @@ Comprehensive code review for uncommitted changes before git commit.
 ```
 
 **Details:** See [skills/pre-commit-review](./skills/pre-commit-review)
+
+### iterative-code-review
+
+Multi-agent iterative code review with auto-fix, running until convergence.
+
+**Use Cases:**
+- Automated quality gate after finishing a feature or fix
+- Catch bugs, security issues, and reliability problems before merging
+- Self-healing loop: review → fix → re-review until no issues remain
+
+**Features:**
+- 🤖 **5 parallel sub-agents**: Correctness, Security, Performance, Reliability, Code Quality — each reviews independently in a fresh context
+- 🔁 **Iterative loop**: Fixes trigger a new review round; stops when converged or `max_iterations` reached
+- 🧹 **Main session isolation**: Sub-agents fetch their own `git diff`; main session context stays clean
+- 🎯 **Noise filter**: Only Critical / High issues with Confidence ≥ 0.70 are auto-fixed
+- 💣 **Blast Radius guard**: High-impact fixes (public API changes) require elevated confidence
+- 📋 **Structured final report**: Fixed / skipped issues table, residual risk, merge recommendation
+
+**Usage:**
+```
+"Do a code review using iterative-code-review skill"
+"review and fix my changes"
+"iterative code review, max_iterations=5"
+```
+
+**Details:** See [skills/iterative-code-review](./skills/iterative-code-review)
 
 ### deploy-caddy-reverse-proxy
 
@@ -284,6 +314,7 @@ See [skills documentation](https://github.com/vercel-labs/skills#available-agent
 # Reinstall to update
 npx skills add ichuan/skills --skill roadmap-management
 npx skills add ichuan/skills --skill pre-commit-review
+npx skills add ichuan/skills --skill iterative-code-review
 npx skills add ichuan/skills --skill searxng-search
 npx skills add ichuan/skills --skill crawl4ai-fetch
 ```
@@ -294,6 +325,7 @@ npx skills add ichuan/skills --skill crawl4ai-fetch
 # Global uninstall
 rm -rf ~/.claude/skills/roadmap-management
 rm -rf ~/.claude/skills/pre-commit-review
+rm -rf ~/.claude/skills/iterative-code-review
 rm -rf ~/.claude/skills/deploy-caddy-reverse-proxy
 rm -rf ~/.claude/skills/searxng-search
 rm -rf ~/.claude/skills/crawl4ai-fetch
@@ -301,6 +333,7 @@ rm -rf ~/.claude/skills/crawl4ai-fetch
 # Local uninstall
 rm -rf ./.claude/skills/roadmap-management
 rm -rf ./.claude/skills/pre-commit-review
+rm -rf ./.claude/skills/iterative-code-review
 rm -rf ./.claude/skills/deploy-caddy-reverse-proxy
 rm -rf ./.claude/skills/searxng-search
 rm -rf ./.claude/skills/crawl4ai-fetch
