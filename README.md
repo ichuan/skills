@@ -19,12 +19,14 @@ npx skills add ichuan/skills --skill roadmap-management
 npx skills add ichuan/skills --skill pre-commit-review
 npx skills add ichuan/skills --skill deploy-caddy-reverse-proxy
 npx skills add ichuan/skills --skill searxng-search
+npx skills add ichuan/skills --skill crawl4ai-fetch
 
 # Install globally (available in all projects)
 npx skills add ichuan/skills --skill roadmap-management --global
 npx skills add ichuan/skills --skill pre-commit-review --global
 npx skills add ichuan/skills --skill deploy-caddy-reverse-proxy --global
 npx skills add ichuan/skills --skill searxng-search --global
+npx skills add ichuan/skills --skill crawl4ai-fetch --global
 ```
 
 ### Manual Installation
@@ -38,6 +40,7 @@ cp -r skills/skills/roadmap-management ~/.claude/skills/
 cp -r skills/skills/pre-commit-review ~/.claude/skills/
 cp -r skills/skills/deploy-caddy-reverse-proxy ~/.claude/skills/
 cp -r skills/skills/searxng-search ~/.claude/skills/
+cp -r skills/skills/crawl4ai-fetch ~/.claude/skills/
 
 # Or copy to project-local directory
 mkdir -p ./.claude/skills
@@ -45,6 +48,7 @@ cp -r skills/skills/roadmap-management ./.claude/skills/
 cp -r skills/skills/pre-commit-review ./.claude/skills/
 cp -r skills/skills/deploy-caddy-reverse-proxy ./.claude/skills/
 cp -r skills/skills/searxng-search ./.claude/skills/
+cp -r skills/skills/crawl4ai-fetch ./.claude/skills/
 ```
 
 ## Skills
@@ -190,6 +194,60 @@ SEARXNG_URL=https://search.example.com
 SEARXNG_TOKEN=YOUR_SECRET_TOKEN
 ```
 
+### crawl4ai-fetch
+
+Fetch any URL and convert it to clean Markdown via a self-hosted [crawl4ai](https://github.com/unclecode/crawl4ai) server.
+
+**Use Cases:**
+- Read and summarize a webpage for an LLM
+- Extract article or documentation content as Markdown
+- Crawl JavaScript-rendered pages that plain HTTP clients can't read
+
+**Features:**
+- 📄 **Markdown output**: Clean, LLM-ready Markdown from any URL
+- 🎯 **Filter modes**: `fit` (smart), `raw` (full page), `bm25` (query-relevant)
+- 🔑 **Bearer auth support**: Optional token for protected instances
+- 🗂️ **`.env` auto-load**: Reads `CRAWL4AI_URL` / `CRAWL4AI_TOKEN` from `.env` in CWD if not set in environment
+
+**Usage:**
+```
+"Fetch https://docs.example.com/api and summarize it"
+"Get the content of this news article: https://..."
+"Read this page and answer my question about it"
+```
+
+**Details:** See [skills/crawl4ai-fetch](./skills/crawl4ai-fetch)
+
+#### Deploying crawl4ai with Caddy Bearer Auth
+
+Start the crawl4ai Docker container:
+
+```bash
+docker stop crawl4ai
+docker run --rm -itd \
+  -p 8002:11235 \
+  --name crawl4ai \
+  --shm-size=1g \
+  unclecode/crawl4ai:latest
+```
+
+Then add a Caddy site block using the same `auth_bearer` snippet as SearXNG (see above):
+
+```caddy
+crawl.example.com {
+    encode gzip
+    import auth_bearer YOUR_SECRET_TOKEN http://127.0.0.1:8002
+}
+```
+
+Configure the skill:
+
+```
+# .env (project root)
+CRAWL4AI_URL=https://crawl.example.com
+CRAWL4AI_TOKEN=YOUR_SECRET_TOKEN
+```
+
 ### Verification
 
 After installation, test the skill in Claude Code:
@@ -227,6 +285,7 @@ See [skills documentation](https://github.com/vercel-labs/skills#available-agent
 npx skills add ichuan/skills --skill roadmap-management
 npx skills add ichuan/skills --skill pre-commit-review
 npx skills add ichuan/skills --skill searxng-search
+npx skills add ichuan/skills --skill crawl4ai-fetch
 ```
 
 ### Uninstall Skills
@@ -237,12 +296,14 @@ rm -rf ~/.claude/skills/roadmap-management
 rm -rf ~/.claude/skills/pre-commit-review
 rm -rf ~/.claude/skills/deploy-caddy-reverse-proxy
 rm -rf ~/.claude/skills/searxng-search
+rm -rf ~/.claude/skills/crawl4ai-fetch
 
 # Local uninstall
 rm -rf ./.claude/skills/roadmap-management
 rm -rf ./.claude/skills/pre-commit-review
 rm -rf ./.claude/skills/deploy-caddy-reverse-proxy
 rm -rf ./.claude/skills/searxng-search
+rm -rf ./.claude/skills/crawl4ai-fetch
 ```
 
 ## License
