@@ -1,0 +1,364 @@
+> 📖 [English](./README.md) | 中文
+
+# 个人 Skills 集合
+
+适用于 Claude Code、Cursor、Windsurf 等 AI 编程助手的可复用 Skill 集合。
+
+## 概述
+
+本仓库包含遵循 Agent Skills 规范的技能模块，可通过 `npx skills add` 安装到任意支持该规范的 AI 助手中。
+
+## 安装
+
+### 从 GitHub 安装
+
+```bash
+# 安装全部 skill
+npx skills add ichuan/skills
+
+# 安装指定 skill
+npx skills add ichuan/skills --skill roadmap-management
+npx skills add ichuan/skills --skill pre-commit-review
+npx skills add ichuan/skills --skill iterative-code-review
+npx skills add ichuan/skills --skill deploy-caddy-reverse-proxy
+npx skills add ichuan/skills --skill searxng-search
+npx skills add ichuan/skills --skill crawl4ai-fetch
+
+# 全局安装（在所有项目中可用）
+npx skills add ichuan/skills --skill roadmap-management --global
+npx skills add ichuan/skills --skill pre-commit-review --global
+npx skills add ichuan/skills --skill iterative-code-review --global
+npx skills add ichuan/skills --skill deploy-caddy-reverse-proxy --global
+npx skills add ichuan/skills --skill searxng-search --global
+npx skills add ichuan/skills --skill crawl4ai-fetch --global
+```
+
+### 手动安装
+
+```bash
+# 克隆仓库
+git clone https://github.com/ichuan/skills.git
+
+# 复制到全局 skills 目录
+cp -r skills/skills/roadmap-management ~/.claude/skills/
+cp -r skills/skills/pre-commit-review ~/.claude/skills/
+cp -r skills/skills/iterative-code-review ~/.claude/skills/
+cp -r skills/skills/deploy-caddy-reverse-proxy ~/.claude/skills/
+cp -r skills/skills/searxng-search ~/.claude/skills/
+cp -r skills/skills/crawl4ai-fetch ~/.claude/skills/
+
+# 或复制到项目本地目录
+mkdir -p ./.claude/skills
+cp -r skills/skills/roadmap-management ./.claude/skills/
+cp -r skills/skills/pre-commit-review ./.claude/skills/
+cp -r skills/skills/iterative-code-review ./.claude/skills/
+cp -r skills/skills/deploy-caddy-reverse-proxy ./.claude/skills/
+cp -r skills/skills/searxng-search ./.claude/skills/
+cp -r skills/skills/crawl4ai-fetch ./.claude/skills/
+```
+
+## Skills 详情
+
+### roadmap-management
+
+基于位置优先级的极简项目路线图管理。
+
+**适用场景：**
+- 个人开发者和小团队的项目管理
+- 快速捕获和整理任务
+- 无需复杂优先级评分的轻量工作流
+
+**功能特性：**
+- 📥 **Inbox**：快速记录想法和任务
+- 🟢 **Doing**：当前进行中（限 2-3 项）
+- 🟡 **Next Up**：手动排序的待办列表
+- ⚪ **Backlog**：未来任务
+- 📔 **Done**：最近完成项（最新 5 条）
+- 📜 **CHANGELOG.md**：含日期和 commit 的完整完成历史
+
+**使用示例：**
+```
+"为当前项目创建路线图"
+"把这个 bug 加入 roadmap"
+"更新 roadmap，标记功能为完成"
+"把完成的任务归档到 CHANGELOG"
+```
+
+**详情：** 见 [skills/roadmap-management](./skills/roadmap-management)
+
+---
+
+### pre-commit-review
+
+在 git commit 前对未提交改动做全面的代码审查。
+
+**适用场景：**
+- 提交前代码质量验证
+- 安全漏洞检测
+- 性能问题识别
+- 代码规范评估
+
+**功能特性：**
+- 🔴 **Critical**：安全漏洞、数据丢失风险、系统崩溃
+- 🟡 **Warning**：性能问题、可维护性隐患、潜在 bug
+- 🔵 **Info**：代码风格、小优化、文档建议
+- 📋 **详细检查清单**：涵盖安全、性能、质量、错误处理
+- 🎯 **可操作的修复建议**：每个问题附具体解决方案
+
+**使用示例：**
+```
+"提交前帮我 review 代码"
+"检查我的代码有没有问题"
+"做一次 code review"
+```
+
+**详情：** 见 [skills/pre-commit-review](./skills/pre-commit-review)
+
+---
+
+### iterative-code-review
+
+多 Agent 并发 code review + 自动修复，循环迭代直到收敛。
+
+**适用场景：**
+- 完成 feature 或 fix 后的自动化质量门禁
+- 合并前发现 bug、安全问题和可靠性隐患
+- 自愈循环：review → 修复 → 再 review，直到无问题为止
+
+**功能特性：**
+- 🤖 **5 个并行 sub-agent**：逻辑正确性、安全性、性能、可靠性、代码质量，各自在独立上下文中 review
+- 🔁 **迭代循环**：修复后自动触发下一轮 review，收敛或达到 `max_iterations` 后停止
+- 🧹 **主 session 上下文隔离**：sub-agent 自行 fetch `git diff`，主 session 不被 diff 内容污染
+- 🎯 **噪音过滤**：仅 Critical / High + Confidence ≥ 0.70 的问题才触发自动修复
+- 💣 **影响范围保护**：高影响修复（公开 API 变更）需要更高置信度才执行
+- 📋 **结构化最终报告**：已修复/跳过问题表、遗留风险、合并建议
+
+**使用示例：**
+```
+"使用 iterative-code-review skill 做 code review"
+"review and fix my changes"
+"做 code review，max_iterations=5"
+```
+
+**详情：** 见 [skills/iterative-code-review](./skills/iterative-code-review)
+
+---
+
+### deploy-caddy-reverse-proxy
+
+在远程服务器上自动部署 Caddy 反向代理，含 SSL 证书和 systemd 服务配置。
+
+**适用场景：**
+- 为本地 Web 服务配置反向代理
+- 自动申请和管理 Let's Encrypt SSL 证书
+- 配置开机自启的 systemd 服务
+- 代理 HTTP/WebSocket 流量
+
+**功能特性：**
+- 🔒 **自动 SSL**：Let's Encrypt 证书申请与自动续期
+- 🔄 **反向代理**：HTTP/WebSocket 流量转发
+- ⚙️ **Systemd 集成**：自动启动与崩溃恢复
+- 🎯 **智能检测**：自动识别系统环境，选择最优配置
+- 📋 **交互式配置**：通过问答收集部署参数
+- ✅ **部署验证**：自动验证证书、端口和 HTTPS 访问
+
+**使用示例：**
+```
+"部署 caddy 反向代理"
+"给我的 web 服务配置 caddy"
+"配置带 SSL 的 caddy"
+```
+
+**详情：** 见 [skills/deploy-caddy-reverse-proxy](./skills/deploy-caddy-reverse-proxy)
+
+---
+
+### searxng-search
+
+通过自托管的 [SearXNG](https://github.com/searxng/searxng) 聚合搜索服务器进行网页搜索。
+
+**适用场景：**
+- 在 AI Agent 中直接搜索网络
+- 研究话题、查找 URL、在线查询信息
+- 自托管、保护隐私的商业搜索 API 替代方案
+
+**功能特性：**
+- 🔍 **NDJSON 输出**：每行一条结构化 `{url, title, snippet}` 结果
+- 🔑 **Bearer 认证支持**：可为受保护实例配置 token
+- 📄 **分页支持**：`--page` / `--limit` 参数获取更多结果
+- 🗂️ **`.env` 自动加载**：若环境变量未设置，自动从项目根目录的 `.env` 读取 `SEARXNG_URL` / `SEARXNG_TOKEN`
+
+**使用示例：**
+```
+"搜索 Python 3.13 最新发布说明"
+"查找 Caddy 服务器的文档"
+"搜索 LLM 基准测试最新动态"
+```
+
+**详情：** 见 [skills/searxng-search](./skills/searxng-search)
+
+#### 使用 Caddy Bearer Auth 部署 SearXNG
+
+SearXNG 本身不带认证功能。以下 Caddy 配置片段为实例添加 Bearer token 认证：
+
+```caddy
+# Caddyfile
+
+(auth_bearer) {
+    handle {
+        @valid_token header Authorization "Bearer {args[0]}"
+        route @valid_token {
+            reverse_proxy {args[1]} {
+                header_up Host {http.reverse_proxy.upstream.hostport}
+            }
+        }
+
+        @invalid_token not header Authorization "Bearer {args[0]}"
+        respond @invalid_token "Unauthorized" 401
+    }
+}
+
+search.example.com {
+    encode gzip
+    import auth_bearer YOUR_SECRET_TOKEN http://127.0.0.1:8001
+}
+```
+
+将 `search.example.com`、`YOUR_SECRET_TOKEN` 和 `http://127.0.0.1:8001`（SearXNG 监听地址）替换为你自己的值，Caddy 会自动申请 Let's Encrypt TLS 证书。
+
+然后配置 skill：
+
+```
+# .env（项目根目录）
+SEARXNG_URL=https://search.example.com
+SEARXNG_TOKEN=YOUR_SECRET_TOKEN
+```
+
+---
+
+### crawl4ai-fetch
+
+通过自托管的 [crawl4ai](https://github.com/unclecode/crawl4ai) 服务器将任意 URL 转换为干净的 Markdown。
+
+**适用场景：**
+- 为 LLM 读取和总结网页内容
+- 将文章或文档内容提取为 Markdown
+- 抓取普通 HTTP 客户端无法读取的 JavaScript 渲染页面
+
+**功能特性：**
+- 📄 **Markdown 输出**：将任意 URL 转换为 LLM 友好的干净 Markdown
+- 🎯 **过滤模式**：`fit`（智能提取）、`raw`（完整页面）、`bm25`（相关性过滤）
+- 🔑 **Bearer 认证支持**：可为受保护实例配置 token
+- 🗂️ **`.env` 自动加载**：若环境变量未设置，自动从项目根目录的 `.env` 读取 `CRAWL4AI_URL` / `CRAWL4AI_TOKEN`
+
+**使用示例：**
+```
+"抓取 https://docs.example.com/api 并总结内容"
+"获取这篇新闻文章的内容：https://..."
+"读取这个页面并回答我关于它的问题"
+```
+
+**详情：** 见 [skills/crawl4ai-fetch](./skills/crawl4ai-fetch)
+
+#### 使用 Caddy Bearer Auth 部署 crawl4ai
+
+启动 crawl4ai Docker 容器：
+
+```bash
+docker stop crawl4ai
+docker run --rm -itd \
+  -p 8002:11235 \
+  --name crawl4ai \
+  --shm-size=1g \
+  unclecode/crawl4ai:latest
+```
+
+在 Caddyfile 中复用上方 SearXNG 的 `auth_bearer` 片段，添加站点块：
+
+```caddy
+crawl.example.com {
+    encode gzip
+    import auth_bearer YOUR_SECRET_TOKEN http://127.0.0.1:8002
+}
+```
+
+配置 skill：
+
+```
+# .env（项目根目录）
+CRAWL4AI_URL=https://crawl.example.com
+CRAWL4AI_TOKEN=YOUR_SECRET_TOKEN
+```
+
+---
+
+## 使用验证
+
+安装后，在 Claude Code 中测试：
+
+```
+"为当前项目创建路线图"
+```
+
+如果 Claude 开始执行操作，说明安装成功。
+
+## 支持的 AI 助手
+
+| 助手 | 项目路径 | 全局路径 |
+|------|----------|----------|
+| Claude Code | `.claude/skills/` | `~/.claude/skills/` |
+| Cursor | `.cursor/skills/` | `~/.cursor/skills/` |
+| Windsurf | `.windsurf/skills/` | `~/.codeium/windsurf/skills/` |
+| Cline | `.cline/skills/` | `~/.cline/skills/` |
+| OpenCode | `.opencode/skills/` | `~/.config/opencode/skills/` |
+| GitHub Copilot | `.github/skills/` | `~/.copilot/skills/` |
+
+更多支持的助手见 [skills 文档](https://github.com/vercel-labs/skills#available-agents)。
+
+## 全局安装 vs 本地安装
+
+- **全局安装**（`~/.claude/skills/`）：在所有项目中可用
+- **本地安装**（`./.claude/skills/`）：仅限当前项目，优先级高于全局
+
+## 更新与卸载
+
+### 更新 Skills
+
+```bash
+# 重新安装即可更新
+npx skills add ichuan/skills --skill roadmap-management
+npx skills add ichuan/skills --skill pre-commit-review
+npx skills add ichuan/skills --skill iterative-code-review
+npx skills add ichuan/skills --skill searxng-search
+npx skills add ichuan/skills --skill crawl4ai-fetch
+```
+
+### 卸载 Skills
+
+```bash
+# 全局卸载
+rm -rf ~/.claude/skills/roadmap-management
+rm -rf ~/.claude/skills/pre-commit-review
+rm -rf ~/.claude/skills/iterative-code-review
+rm -rf ~/.claude/skills/deploy-caddy-reverse-proxy
+rm -rf ~/.claude/skills/searxng-search
+rm -rf ~/.claude/skills/crawl4ai-fetch
+
+# 本地卸载
+rm -rf ./.claude/skills/roadmap-management
+rm -rf ./.claude/skills/pre-commit-review
+rm -rf ./.claude/skills/iterative-code-review
+rm -rf ./.claude/skills/deploy-caddy-reverse-proxy
+rm -rf ./.claude/skills/searxng-search
+rm -rf ./.claude/skills/crawl4ai-fetch
+```
+
+## 许可证
+
+MIT License — 详见 [LICENSE](LICENSE) 文件。
+
+## 相关链接
+
+- [Agent Skills 规范](https://github.com/anthropics/skills)
+- [skills 工具](https://github.com/vercel-labs/skills)
+- [Claude Code 文档](https://github.com/anthropics/claude-code)

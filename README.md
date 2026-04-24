@@ -1,3 +1,5 @@
+> 📖 English | [中文](./README_ZH.md)
+
 # Personal Skills Collection
 
 A collection of reusable skill sets for AI coding agents like Claude Code, Cursor, and Windsurf.
