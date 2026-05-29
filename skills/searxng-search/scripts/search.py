@@ -55,7 +55,7 @@ def search(query: str, base_url: str, token: str | None, pageno: int = 1) -> lis
         req.add_header("Authorization", f"Bearer {token}")
 
     try:
-        with urllib.request.urlopen(req, timeout=15) as resp:
+        with urllib.request.urlopen(req, timeout=60) as resp:
             data = json.loads(resp.read())
     except urllib.error.HTTPError as e:
         print(f"[error] HTTP {e.code}: {e.reason}", file=sys.stderr)
