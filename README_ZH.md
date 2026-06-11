@@ -18,7 +18,6 @@ npx skills add ichuan/skills
 
 # 安装指定 skill
 npx skills add ichuan/skills --skill roadmap-management
-npx skills add ichuan/skills --skill pre-commit-review
 npx skills add ichuan/skills --skill iterative-code-review
 npx skills add ichuan/skills --skill deploy-caddy-reverse-proxy
 npx skills add ichuan/skills --skill searxng-search
@@ -28,7 +27,6 @@ npx skills add ichuan/skills --skill prod-readiness-audit
 
 # 全局安装（在所有项目中可用）
 npx skills add ichuan/skills --skill roadmap-management --global
-npx skills add ichuan/skills --skill pre-commit-review --global
 npx skills add ichuan/skills --skill iterative-code-review --global
 npx skills add ichuan/skills --skill deploy-caddy-reverse-proxy --global
 npx skills add ichuan/skills --skill searxng-search --global
@@ -45,7 +43,6 @@ git clone https://github.com/ichuan/skills.git
 
 # 复制到全局 skills 目录
 cp -r skills/skills/roadmap-management ~/.claude/skills/
-cp -r skills/skills/pre-commit-review ~/.claude/skills/
 cp -r skills/skills/iterative-code-review ~/.claude/skills/
 cp -r skills/skills/deploy-caddy-reverse-proxy ~/.claude/skills/
 cp -r skills/skills/searxng-search ~/.claude/skills/
@@ -56,7 +53,6 @@ cp -r skills/skills/prod-readiness-audit ~/.claude/skills/
 # 或复制到项目本地目录
 mkdir -p ./.claude/skills
 cp -r skills/skills/roadmap-management ./.claude/skills/
-cp -r skills/skills/pre-commit-review ./.claude/skills/
 cp -r skills/skills/iterative-code-review ./.claude/skills/
 cp -r skills/skills/deploy-caddy-reverse-proxy ./.claude/skills/
 cp -r skills/skills/searxng-search ./.claude/skills/
@@ -93,34 +89,6 @@ cp -r skills/skills/prod-readiness-audit ./.claude/skills/
 ```
 
 **详情：** 见 [skills/roadmap-management](./skills/roadmap-management)
-
----
-
-### pre-commit-review
-
-在 git commit 前对未提交改动做全面的代码审查。
-
-**适用场景：**
-- 提交前代码质量验证
-- 安全漏洞检测
-- 性能问题识别
-- 代码规范评估
-
-**功能特性：**
-- 🔴 **Critical**：安全漏洞、数据丢失风险、系统崩溃
-- 🟡 **Warning**：性能问题、可维护性隐患、潜在 bug
-- 🔵 **Info**：代码风格、小优化、文档建议
-- 📋 **详细检查清单**：涵盖安全、性能、质量、错误处理
-- 🎯 **可操作的修复建议**：每个问题附具体解决方案
-
-**使用示例：**
-```
-"提交前帮我 review 代码"
-"检查我的代码有没有问题"
-"做一次 code review"
-```
-
-**详情：** 见 [skills/pre-commit-review](./skills/pre-commit-review)
 
 ---
 
@@ -381,7 +349,6 @@ CRAWL4AI_TOKEN=YOUR_SECRET_TOKEN
 ```bash
 # 重新安装即可更新
 npx skills add ichuan/skills --skill roadmap-management
-npx skills add ichuan/skills --skill pre-commit-review
 npx skills add ichuan/skills --skill iterative-code-review
 npx skills add ichuan/skills --skill searxng-search
 npx skills add ichuan/skills --skill crawl4ai-fetch
@@ -394,7 +361,6 @@ npx skills add ichuan/skills --skill prod-readiness-audit
 ```bash
 # 全局卸载
 rm -rf ~/.claude/skills/roadmap-management
-rm -rf ~/.claude/skills/pre-commit-review
 rm -rf ~/.claude/skills/iterative-code-review
 rm -rf ~/.claude/skills/deploy-caddy-reverse-proxy
 rm -rf ~/.claude/skills/searxng-search
@@ -404,7 +370,6 @@ rm -rf ~/.claude/skills/prod-readiness-audit
 
 # 本地卸载
 rm -rf ./.claude/skills/roadmap-management
-rm -rf ./.claude/skills/pre-commit-review
 rm -rf ./.claude/skills/iterative-code-review
 rm -rf ./.claude/skills/deploy-caddy-reverse-proxy
 rm -rf ./.claude/skills/searxng-search

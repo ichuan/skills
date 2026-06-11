@@ -18,7 +18,6 @@ npx skills add ichuan/skills
 
 # Install a specific skill
 npx skills add ichuan/skills --skill roadmap-management
-npx skills add ichuan/skills --skill pre-commit-review
 npx skills add ichuan/skills --skill iterative-code-review
 npx skills add ichuan/skills --skill deploy-caddy-reverse-proxy
 npx skills add ichuan/skills --skill searxng-search
@@ -28,7 +27,6 @@ npx skills add ichuan/skills --skill prod-readiness-audit
 
 # Install globally (available in all projects)
 npx skills add ichuan/skills --skill roadmap-management --global
-npx skills add ichuan/skills --skill pre-commit-review --global
 npx skills add ichuan/skills --skill iterative-code-review --global
 npx skills add ichuan/skills --skill deploy-caddy-reverse-proxy --global
 npx skills add ichuan/skills --skill searxng-search --global
@@ -45,7 +43,6 @@ git clone https://github.com/ichuan/skills.git
 
 # Copy to global skills directory
 cp -r skills/skills/roadmap-management ~/.claude/skills/
-cp -r skills/skills/pre-commit-review ~/.claude/skills/
 cp -r skills/skills/iterative-code-review ~/.claude/skills/
 cp -r skills/skills/deploy-caddy-reverse-proxy ~/.claude/skills/
 cp -r skills/skills/searxng-search ~/.claude/skills/
@@ -56,7 +53,6 @@ cp -r skills/skills/prod-readiness-audit ~/.claude/skills/
 # Or copy to project-local directory
 mkdir -p ./.claude/skills
 cp -r skills/skills/roadmap-management ./.claude/skills/
-cp -r skills/skills/pre-commit-review ./.claude/skills/
 cp -r skills/skills/iterative-code-review ./.claude/skills/
 cp -r skills/skills/deploy-caddy-reverse-proxy ./.claude/skills/
 cp -r skills/skills/searxng-search ./.claude/skills/
@@ -93,32 +89,6 @@ Minimalist project roadmap management based on position-based priority system.
 ```
 
 **Details:** See [skills/roadmap-management](./skills/roadmap-management)
-
-### pre-commit-review
-
-Comprehensive code review for uncommitted changes before git commit.
-
-**Use Cases:**
-- Pre-commit code validation
-- Security vulnerability detection
-- Performance issue identification
-- Code quality assessment
-
-**Features:**
-- 🔴 **Critical Issues**: Security vulnerabilities, data loss risks, system crashes
-- 🟡 **Warnings**: Performance problems, maintainability issues, potential bugs
-- 🔵 **Info**: Code style, optimizations, documentation suggestions
-- 📋 **Comprehensive Checklist**: Security, performance, quality, error handling
-- 🎯 **Actionable Solutions**: Specific fix recommendations for each issue
-
-**Usage:**
-```
-"Review my changes before commit"
-"Check my code for issues"
-"Code review before committing"
-```
-
-**Details:** See [skills/pre-commit-review](./skills/pre-commit-review)
 
 ### iterative-code-review
 
@@ -369,7 +339,6 @@ See [skills documentation](https://github.com/vercel-labs/skills#available-agent
 ```bash
 # Reinstall to update
 npx skills add ichuan/skills --skill roadmap-management
-npx skills add ichuan/skills --skill pre-commit-review
 npx skills add ichuan/skills --skill iterative-code-review
 npx skills add ichuan/skills --skill searxng-search
 npx skills add ichuan/skills --skill crawl4ai-fetch
@@ -382,7 +351,6 @@ npx skills add ichuan/skills --skill prod-readiness-audit
 ```bash
 # Global uninstall
 rm -rf ~/.claude/skills/roadmap-management
-rm -rf ~/.claude/skills/pre-commit-review
 rm -rf ~/.claude/skills/iterative-code-review
 rm -rf ~/.claude/skills/deploy-caddy-reverse-proxy
 rm -rf ~/.claude/skills/searxng-search
@@ -392,7 +360,6 @@ rm -rf ~/.claude/skills/prod-readiness-audit
 
 # Local uninstall
 rm -rf ./.claude/skills/roadmap-management
-rm -rf ./.claude/skills/pre-commit-review
 rm -rf ./.claude/skills/iterative-code-review
 rm -rf ./.claude/skills/deploy-caddy-reverse-proxy
 rm -rf ./.claude/skills/searxng-search
