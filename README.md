@@ -23,6 +23,8 @@ npx skills add ichuan/skills --skill iterative-code-review
 npx skills add ichuan/skills --skill deploy-caddy-reverse-proxy
 npx skills add ichuan/skills --skill searxng-search
 npx skills add ichuan/skills --skill crawl4ai-fetch
+npx skills add ichuan/skills --skill repo-deploy-capture
+npx skills add ichuan/skills --skill prod-readiness-audit
 
 # Install globally (available in all projects)
 npx skills add ichuan/skills --skill roadmap-management --global
@@ -31,6 +33,8 @@ npx skills add ichuan/skills --skill iterative-code-review --global
 npx skills add ichuan/skills --skill deploy-caddy-reverse-proxy --global
 npx skills add ichuan/skills --skill searxng-search --global
 npx skills add ichuan/skills --skill crawl4ai-fetch --global
+npx skills add ichuan/skills --skill repo-deploy-capture --global
+npx skills add ichuan/skills --skill prod-readiness-audit --global
 ```
 
 ### Manual Installation
@@ -46,6 +50,8 @@ cp -r skills/skills/iterative-code-review ~/.claude/skills/
 cp -r skills/skills/deploy-caddy-reverse-proxy ~/.claude/skills/
 cp -r skills/skills/searxng-search ~/.claude/skills/
 cp -r skills/skills/crawl4ai-fetch ~/.claude/skills/
+cp -r skills/skills/repo-deploy-capture ~/.claude/skills/
+cp -r skills/skills/prod-readiness-audit ~/.claude/skills/
 
 # Or copy to project-local directory
 mkdir -p ./.claude/skills
@@ -55,6 +61,8 @@ cp -r skills/skills/iterative-code-review ./.claude/skills/
 cp -r skills/skills/deploy-caddy-reverse-proxy ./.claude/skills/
 cp -r skills/skills/searxng-search ./.claude/skills/
 cp -r skills/skills/crawl4ai-fetch ./.claude/skills/
+cp -r skills/skills/repo-deploy-capture ./.claude/skills/
+cp -r skills/skills/prod-readiness-audit ./.claude/skills/
 ```
 
 ## Skills
@@ -280,6 +288,52 @@ CRAWL4AI_URL=https://crawl.example.com
 CRAWL4AI_TOKEN=YOUR_SECRET_TOKEN
 ```
 
+### repo-deploy-capture
+
+Capture a verified deployment workflow into project documentation or memory after a successful deploy.
+
+**Use Cases:**
+- Record the exact deploy path that just worked
+- Preserve health checks, smoke checks, and rollback commands
+- Document deployment pitfalls without leaking secrets
+
+**Features:**
+- 📋 **Operational capture**: Focuses on commands, directories, checks, and expected success signals
+- 🔐 **Sensitive detail scrubbing**: Keeps secrets and private infrastructure out of reusable notes
+- 🎯 **Single source of truth**: Prefers one authoritative deployment document over scattered notes
+
+**Usage:**
+```
+"Capture the deployment workflow we just used"
+"Record these deploy steps for next time"
+"Save the correct server update procedure in project docs"
+```
+
+**Details:** See [skills/repo-deploy-capture](./skills/repo-deploy-capture)
+
+### prod-readiness-audit
+
+Audit and harden a project before production release, then fix issues found where safe.
+
+**Use Cases:**
+- Final pre-launch project audit
+- Responsive, light/dark theme, SEO, and performance cleanup
+- Security, tests, deployment readiness, and production smoke validation
+
+**Features:**
+- 🧭 **Structured audit plan**: Baseline, UX completeness, responsive, theme, SEO, performance, security, deployment
+- 🛠️ **Fix-oriented workflow**: Fixes concrete issues instead of only reporting them
+- ✅ **Verification discipline**: Requires tests, builds, browser checks, Lighthouse, or smoke checks when feasible
+
+**Usage:**
+```
+"Audit this project before production deployment"
+"Handle responsiveness, dark mode, SEO, performance, and security before launch"
+"Check whether this project is ready to deploy and fix blockers"
+```
+
+**Details:** See [skills/prod-readiness-audit](./skills/prod-readiness-audit)
+
 ### Verification
 
 After installation, test the skill in Claude Code:
@@ -319,6 +373,8 @@ npx skills add ichuan/skills --skill pre-commit-review
 npx skills add ichuan/skills --skill iterative-code-review
 npx skills add ichuan/skills --skill searxng-search
 npx skills add ichuan/skills --skill crawl4ai-fetch
+npx skills add ichuan/skills --skill repo-deploy-capture
+npx skills add ichuan/skills --skill prod-readiness-audit
 ```
 
 ### Uninstall Skills
@@ -331,6 +387,8 @@ rm -rf ~/.claude/skills/iterative-code-review
 rm -rf ~/.claude/skills/deploy-caddy-reverse-proxy
 rm -rf ~/.claude/skills/searxng-search
 rm -rf ~/.claude/skills/crawl4ai-fetch
+rm -rf ~/.claude/skills/repo-deploy-capture
+rm -rf ~/.claude/skills/prod-readiness-audit
 
 # Local uninstall
 rm -rf ./.claude/skills/roadmap-management
@@ -339,6 +397,8 @@ rm -rf ./.claude/skills/iterative-code-review
 rm -rf ./.claude/skills/deploy-caddy-reverse-proxy
 rm -rf ./.claude/skills/searxng-search
 rm -rf ./.claude/skills/crawl4ai-fetch
+rm -rf ./.claude/skills/repo-deploy-capture
+rm -rf ./.claude/skills/prod-readiness-audit
 ```
 
 ## License

@@ -23,6 +23,8 @@ npx skills add ichuan/skills --skill iterative-code-review
 npx skills add ichuan/skills --skill deploy-caddy-reverse-proxy
 npx skills add ichuan/skills --skill searxng-search
 npx skills add ichuan/skills --skill crawl4ai-fetch
+npx skills add ichuan/skills --skill repo-deploy-capture
+npx skills add ichuan/skills --skill prod-readiness-audit
 
 # 全局安装（在所有项目中可用）
 npx skills add ichuan/skills --skill roadmap-management --global
@@ -31,6 +33,8 @@ npx skills add ichuan/skills --skill iterative-code-review --global
 npx skills add ichuan/skills --skill deploy-caddy-reverse-proxy --global
 npx skills add ichuan/skills --skill searxng-search --global
 npx skills add ichuan/skills --skill crawl4ai-fetch --global
+npx skills add ichuan/skills --skill repo-deploy-capture --global
+npx skills add ichuan/skills --skill prod-readiness-audit --global
 ```
 
 ### 手动安装
@@ -46,6 +50,8 @@ cp -r skills/skills/iterative-code-review ~/.claude/skills/
 cp -r skills/skills/deploy-caddy-reverse-proxy ~/.claude/skills/
 cp -r skills/skills/searxng-search ~/.claude/skills/
 cp -r skills/skills/crawl4ai-fetch ~/.claude/skills/
+cp -r skills/skills/repo-deploy-capture ~/.claude/skills/
+cp -r skills/skills/prod-readiness-audit ~/.claude/skills/
 
 # 或复制到项目本地目录
 mkdir -p ./.claude/skills
@@ -55,6 +61,8 @@ cp -r skills/skills/iterative-code-review ./.claude/skills/
 cp -r skills/skills/deploy-caddy-reverse-proxy ./.claude/skills/
 cp -r skills/skills/searxng-search ./.claude/skills/
 cp -r skills/skills/crawl4ai-fetch ./.claude/skills/
+cp -r skills/skills/repo-deploy-capture ./.claude/skills/
+cp -r skills/skills/prod-readiness-audit ./.claude/skills/
 ```
 
 ## Skills 详情
@@ -290,6 +298,52 @@ CRAWL4AI_URL=https://crawl.example.com
 CRAWL4AI_TOKEN=YOUR_SECRET_TOKEN
 ```
 
+### repo-deploy-capture
+
+在一次真实部署成功后，把可复用的部署流程记录到项目文档或记忆中。
+
+**适用场景：**
+- 记录刚刚验证通过的部署路径
+- 保存 health check、smoke check 和回滚命令
+- 记录部署踩坑，同时避免泄露 secret
+
+**功能特性：**
+- 📋 **操作化记录**：聚焦命令、目录、检查项和成功信号
+- 🔐 **敏感信息清理**：避免把 secret 和私有基础设施写进通用说明
+- 🎯 **单一事实来源**：优先维护一个权威部署文档
+
+**使用示例：**
+```
+"记录一下刚刚用过的部署流程"
+"把这次正确的服务器更新步骤保存下来"
+"把部署踩坑写到项目文档里"
+```
+
+**详情：** 见 [skills/repo-deploy-capture](./skills/repo-deploy-capture)
+
+### prod-readiness-audit
+
+上线前审计并加固项目，在安全范围内直接修复发现的问题。
+
+**适用场景：**
+- 最终上线前检查
+- 响应式、明暗主题、SEO 和性能收尾
+- 安全、测试、部署准备和生产 smoke 验证
+
+**功能特性：**
+- 🧭 **结构化审计**：覆盖基线、功能完整性、响应式、主题、SEO、性能、安全和部署
+- 🛠️ **修复导向**：优先修复具体问题，而不是只做报告
+- ✅ **验证闭环**：要求在可行时执行测试、构建、浏览器检查、Lighthouse 或 smoke check
+
+**使用示例：**
+```
+"上线前整体审计这个项目"
+"处理响应式、暗黑模式、SEO、性能和安全问题"
+"看看这个项目能不能部署上线，并修复阻塞项"
+```
+
+**详情：** 见 [skills/prod-readiness-audit](./skills/prod-readiness-audit)
+
 ---
 
 ## 使用验证
@@ -331,6 +385,8 @@ npx skills add ichuan/skills --skill pre-commit-review
 npx skills add ichuan/skills --skill iterative-code-review
 npx skills add ichuan/skills --skill searxng-search
 npx skills add ichuan/skills --skill crawl4ai-fetch
+npx skills add ichuan/skills --skill repo-deploy-capture
+npx skills add ichuan/skills --skill prod-readiness-audit
 ```
 
 ### 卸载 Skills
@@ -343,6 +399,8 @@ rm -rf ~/.claude/skills/iterative-code-review
 rm -rf ~/.claude/skills/deploy-caddy-reverse-proxy
 rm -rf ~/.claude/skills/searxng-search
 rm -rf ~/.claude/skills/crawl4ai-fetch
+rm -rf ~/.claude/skills/repo-deploy-capture
+rm -rf ~/.claude/skills/prod-readiness-audit
 
 # 本地卸载
 rm -rf ./.claude/skills/roadmap-management
@@ -351,6 +409,8 @@ rm -rf ./.claude/skills/iterative-code-review
 rm -rf ./.claude/skills/deploy-caddy-reverse-proxy
 rm -rf ./.claude/skills/searxng-search
 rm -rf ./.claude/skills/crawl4ai-fetch
+rm -rf ./.claude/skills/repo-deploy-capture
+rm -rf ./.claude/skills/prod-readiness-audit
 ```
 
 ## 许可证
