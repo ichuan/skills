@@ -316,12 +316,14 @@ Configurable multi-model code review workflow using local Claude Code or Codex C
 - Review uncommitted changes or a feature branch before commit/merge
 - Compare independent model findings and synthesize a human-checkable summary
 - Fix selected issues with one model and verify them with another
+- Use only the review/summary stages, then let the original development session or a human apply fixes
 
 **Features:**
 - 🤖 **3 configured review models**: Runs the first three `review_models` independently
 - 🧾 **Runner-managed artifacts**: Captures final stdout into `.review-forge/artifacts/<feature>/reviews/`; logs go to `logs/`
 - 🧹 **Main session isolation**: Large prompts and diffs stay in ignored `.review-forge/runs/` files, not the development chat
 - ✋ **Human gate**: Stops after `summary.md`; the user checks which issues are worth fixing
+- 🧩 **Partial workflow**: Review-only, external/manual fix, verify-only-after-fix, or full review→fix→verify are all supported
 - 🛠️ **Fix / verify split**: Uses configured `fix_model` and independent `verify_model`
 - 🔐 **Single local workspace**: Stores config, runtime prompts, and review artifacts under ignored `.review-forge/`
 - 🧷 **First-run config gate**: `init` creates `config_ready: false`; review/fix commands refuse to run until the user confirms model settings
@@ -332,6 +334,7 @@ Configurable multi-model code review workflow using local Claude Code or Codex C
 "Use multi-agent-review to review my uncommitted changes"
 "Run multi-agent-review against origin/main"
 "Use multi-agent-review, then stop after summary so I can choose what to fix"
+"Use multi-agent-review only to produce a review summary"
 ```
 
 **Details:** See [skills/multi-agent-review](./skills/multi-agent-review)

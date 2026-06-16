@@ -326,12 +326,14 @@ CRAWL4AI_TOKEN=YOUR_SECRET_TOKEN
 - commit / merge 前审查未提交改动或 feature branch
 - 让多个模型独立 review，再汇总为人工可勾选的 `summary.md`
 - 一个模型修复选中的问题，另一个模型独立验证
+- 只使用 review/summary 阶段，然后交给原开发 session 或人工修复
 
 **功能特性：**
 - 🤖 **3 个配置化 review 模型**：默认使用 `review_models` 前三个模型独立审查
 - 🧾 **Runner 管理产物**：最终 stdout 写入 `.review-forge/artifacts/<feature>/reviews/`，过程日志写入 `logs/`
 - 🧹 **主 session 隔离**：大 prompt 和 diff 写入被忽略的 `.review-forge/runs/`，不污染开发对话
 - ✋ **人工决策门**：生成 `summary.md` 后停止，由用户勾选值得修的问题
+- 🧩 **分段使用**：支持只 review、外部/人工修复后再 verify，或完整 review→fix→verify
 - 🛠️ **修复 / 验证分离**：分别使用配置的 `fix_model` 和独立 `verify_model`
 - 🔐 **单一本地工作区**：配置、运行时 prompt 和 review 产物都放在被忽略的 `.review-forge/`
 - 🧷 **首次运行配置门禁**：`init` 默认生成 `config_ready: false`，用户确认模型配置前不会运行 review/fix
@@ -342,6 +344,7 @@ CRAWL4AI_TOKEN=YOUR_SECRET_TOKEN
 "使用 multi-agent-review 审查未提交改动"
 "用 multi-agent-review review 当前分支相对 origin/main 的修改"
 "使用 multi-agent-review，生成 summary 后停下来让我选择要修的问题"
+"只用 multi-agent-review 生成 review summary"
 ```
 
 **详情：** 见 [skills/multi-agent-review](./skills/multi-agent-review)

@@ -90,6 +90,19 @@ Artifacts are written under:
   pre-fix.diff
 ```
 
+## Partial Workflow
+
+This skill does not require the full review -> fix -> verify flow every time.
+
+Supported stopping points:
+
+- Stop after `review` + `synthesize` and use `summary.md` as a review report.
+- Stop after `summary.md`, then let the original development session, the developer, or another tool apply fixes.
+- After external/manual fixes, run `verify` as long as `summary.md` has checked items and the original review scope exists.
+- Run the full flow only when the user wants this skill to handle both fixing and verification.
+
+If the user wants another session to fix issues, do not run `fix`. Tell the user where `summary.md` is and that checked items can later be verified with this skill.
+
 ## Workflow Rules
 
 - Review agents must be treated as read-only. The runner captures stdout and writes reports itself.
