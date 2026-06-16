@@ -24,6 +24,7 @@ npx skills add ichuan/skills --skill searxng-search
 npx skills add ichuan/skills --skill crawl4ai-fetch
 npx skills add ichuan/skills --skill repo-deploy-capture
 npx skills add ichuan/skills --skill prod-readiness-audit
+npx skills add ichuan/skills --skill multi-agent-review
 
 # Install globally (available in all projects)
 npx skills add ichuan/skills --skill roadmap-management --global
@@ -33,6 +34,7 @@ npx skills add ichuan/skills --skill searxng-search --global
 npx skills add ichuan/skills --skill crawl4ai-fetch --global
 npx skills add ichuan/skills --skill repo-deploy-capture --global
 npx skills add ichuan/skills --skill prod-readiness-audit --global
+npx skills add ichuan/skills --skill multi-agent-review --global
 ```
 
 ### Manual Installation
@@ -49,6 +51,7 @@ cp -r skills/skills/searxng-search ~/.claude/skills/
 cp -r skills/skills/crawl4ai-fetch ~/.claude/skills/
 cp -r skills/skills/repo-deploy-capture ~/.claude/skills/
 cp -r skills/skills/prod-readiness-audit ~/.claude/skills/
+cp -r skills/skills/multi-agent-review ~/.claude/skills/
 
 # Or copy to project-local directory
 mkdir -p ./.claude/skills
@@ -59,6 +62,7 @@ cp -r skills/skills/searxng-search ./.claude/skills/
 cp -r skills/skills/crawl4ai-fetch ./.claude/skills/
 cp -r skills/skills/repo-deploy-capture ./.claude/skills/
 cp -r skills/skills/prod-readiness-audit ./.claude/skills/
+cp -r skills/skills/multi-agent-review ./.claude/skills/
 ```
 
 ## Skills
@@ -304,6 +308,34 @@ Audit and harden a project before production release, then fix issues found wher
 
 **Details:** See [skills/prod-readiness-audit](./skills/prod-readiness-audit)
 
+### multi-agent-review
+
+Configurable multi-model code review workflow using local Claude Code or Codex CLI processes.
+
+**Use Cases:**
+- Review uncommitted changes or a feature branch before commit/merge
+- Compare independent model findings and synthesize a human-checkable summary
+- Fix selected issues with one model and verify them with another
+
+**Features:**
+- 🤖 **3 configured review models**: Runs the first three `review_models` independently
+- 🧾 **Runner-managed artifacts**: Captures final stdout into `.review-forge/artifacts/<feature>/reviews/`; logs go to `logs/`
+- 🧹 **Main session isolation**: Large prompts and diffs stay in ignored `.review-forge/runs/` files, not the development chat
+- ✋ **Human gate**: Stops after `summary.md`; the user checks which issues are worth fixing
+- 🛠️ **Fix / verify split**: Uses configured `fix_model` and independent `verify_model`
+- 🔐 **Single local workspace**: Stores config, runtime prompts, and review artifacts under ignored `.review-forge/`
+- 🧷 **First-run config gate**: `init` creates `config_ready: false`; review/fix commands refuse to run until the user confirms model settings
+- 🔌 **Optional connectivity check**: `check-config` tests configured role models before the real workflow starts
+
+**Usage:**
+```
+"Use multi-agent-review to review my uncommitted changes"
+"Run multi-agent-review against origin/main"
+"Use multi-agent-review, then stop after summary so I can choose what to fix"
+```
+
+**Details:** See [skills/multi-agent-review](./skills/multi-agent-review)
+
 ### Verification
 
 After installation, test the skill in Claude Code:
@@ -344,6 +376,7 @@ npx skills add ichuan/skills --skill searxng-search
 npx skills add ichuan/skills --skill crawl4ai-fetch
 npx skills add ichuan/skills --skill repo-deploy-capture
 npx skills add ichuan/skills --skill prod-readiness-audit
+npx skills add ichuan/skills --skill multi-agent-review
 ```
 
 ### Uninstall Skills
@@ -357,6 +390,7 @@ rm -rf ~/.claude/skills/searxng-search
 rm -rf ~/.claude/skills/crawl4ai-fetch
 rm -rf ~/.claude/skills/repo-deploy-capture
 rm -rf ~/.claude/skills/prod-readiness-audit
+rm -rf ~/.claude/skills/multi-agent-review
 
 # Local uninstall
 rm -rf ./.claude/skills/roadmap-management
@@ -366,6 +400,7 @@ rm -rf ./.claude/skills/searxng-search
 rm -rf ./.claude/skills/crawl4ai-fetch
 rm -rf ./.claude/skills/repo-deploy-capture
 rm -rf ./.claude/skills/prod-readiness-audit
+rm -rf ./.claude/skills/multi-agent-review
 ```
 
 ## License

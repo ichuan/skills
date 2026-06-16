@@ -24,6 +24,7 @@ npx skills add ichuan/skills --skill searxng-search
 npx skills add ichuan/skills --skill crawl4ai-fetch
 npx skills add ichuan/skills --skill repo-deploy-capture
 npx skills add ichuan/skills --skill prod-readiness-audit
+npx skills add ichuan/skills --skill multi-agent-review
 
 # 全局安装（在所有项目中可用）
 npx skills add ichuan/skills --skill roadmap-management --global
@@ -33,6 +34,7 @@ npx skills add ichuan/skills --skill searxng-search --global
 npx skills add ichuan/skills --skill crawl4ai-fetch --global
 npx skills add ichuan/skills --skill repo-deploy-capture --global
 npx skills add ichuan/skills --skill prod-readiness-audit --global
+npx skills add ichuan/skills --skill multi-agent-review --global
 ```
 
 ### 手动安装
@@ -49,6 +51,7 @@ cp -r skills/skills/searxng-search ~/.claude/skills/
 cp -r skills/skills/crawl4ai-fetch ~/.claude/skills/
 cp -r skills/skills/repo-deploy-capture ~/.claude/skills/
 cp -r skills/skills/prod-readiness-audit ~/.claude/skills/
+cp -r skills/skills/multi-agent-review ~/.claude/skills/
 
 # 或复制到项目本地目录
 mkdir -p ./.claude/skills
@@ -59,6 +62,7 @@ cp -r skills/skills/searxng-search ./.claude/skills/
 cp -r skills/skills/crawl4ai-fetch ./.claude/skills/
 cp -r skills/skills/repo-deploy-capture ./.claude/skills/
 cp -r skills/skills/prod-readiness-audit ./.claude/skills/
+cp -r skills/skills/multi-agent-review ./.claude/skills/
 ```
 
 ## Skills 详情
@@ -314,6 +318,36 @@ CRAWL4AI_TOKEN=YOUR_SECRET_TOKEN
 
 ---
 
+### multi-agent-review
+
+基于本地 Claude Code / Codex CLI 进程的可配置多模型 code review 工作流。
+
+**适用场景：**
+- commit / merge 前审查未提交改动或 feature branch
+- 让多个模型独立 review，再汇总为人工可勾选的 `summary.md`
+- 一个模型修复选中的问题，另一个模型独立验证
+
+**功能特性：**
+- 🤖 **3 个配置化 review 模型**：默认使用 `review_models` 前三个模型独立审查
+- 🧾 **Runner 管理产物**：最终 stdout 写入 `.review-forge/artifacts/<feature>/reviews/`，过程日志写入 `logs/`
+- 🧹 **主 session 隔离**：大 prompt 和 diff 写入被忽略的 `.review-forge/runs/`，不污染开发对话
+- ✋ **人工决策门**：生成 `summary.md` 后停止，由用户勾选值得修的问题
+- 🛠️ **修复 / 验证分离**：分别使用配置的 `fix_model` 和独立 `verify_model`
+- 🔐 **单一本地工作区**：配置、运行时 prompt 和 review 产物都放在被忽略的 `.review-forge/`
+- 🧷 **首次运行配置门禁**：`init` 默认生成 `config_ready: false`，用户确认模型配置前不会运行 review/fix
+- 🔌 **可选连通性检查**：`check-config` 可在正式流程前测试各角色模型是否能跑通
+
+**使用示例：**
+```
+"使用 multi-agent-review 审查未提交改动"
+"用 multi-agent-review review 当前分支相对 origin/main 的修改"
+"使用 multi-agent-review，生成 summary 后停下来让我选择要修的问题"
+```
+
+**详情：** 见 [skills/multi-agent-review](./skills/multi-agent-review)
+
+---
+
 ## 使用验证
 
 安装后，在 Claude Code 中测试：
@@ -354,6 +388,7 @@ npx skills add ichuan/skills --skill searxng-search
 npx skills add ichuan/skills --skill crawl4ai-fetch
 npx skills add ichuan/skills --skill repo-deploy-capture
 npx skills add ichuan/skills --skill prod-readiness-audit
+npx skills add ichuan/skills --skill multi-agent-review
 ```
 
 ### 卸载 Skills
@@ -367,6 +402,7 @@ rm -rf ~/.claude/skills/searxng-search
 rm -rf ~/.claude/skills/crawl4ai-fetch
 rm -rf ~/.claude/skills/repo-deploy-capture
 rm -rf ~/.claude/skills/prod-readiness-audit
+rm -rf ~/.claude/skills/multi-agent-review
 
 # 本地卸载
 rm -rf ./.claude/skills/roadmap-management
@@ -376,6 +412,7 @@ rm -rf ./.claude/skills/searxng-search
 rm -rf ./.claude/skills/crawl4ai-fetch
 rm -rf ./.claude/skills/repo-deploy-capture
 rm -rf ./.claude/skills/prod-readiness-audit
+rm -rf ./.claude/skills/multi-agent-review
 ```
 
 ## 许可证

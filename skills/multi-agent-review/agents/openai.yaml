@@ -1,0 +1,4 @@
+interface:
+  display_name: "Multi Agent Review"
+  short_description: "Run multi-model code review with CLI agents"
+  default_prompt: "Use multi-agent-review to review my current changes."
