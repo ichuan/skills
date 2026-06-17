@@ -58,8 +58,6 @@ def main() -> int:
 
     config = load_config(repo)
     if args.command == "review":
-        if not args.scope and not args.base:
-            fail("Diff scope is ambiguous. Ask the user, then pass --scope working or --base <ref>.")
         run_review(repo, config, args.feature, args.scope, args.base)
     elif args.command == "synthesize":
         run_synthesize(repo, config, args.feature)
@@ -271,6 +269,7 @@ def run_check_config(repo: Path, config: dict[str, Any]) -> None:
 
 def run_review(repo: Path, config: dict[str, Any], feature: str, scope: str | None, base: str | None) -> None:
     feature_dir = make_feature_dirs(repo, feature)
+    scope, base = resolve_review_scope(repo, scope, base)
     diff, scope_description = collect_review_diff(repo, scope, base)
     if not diff.strip():
         fail("Selected diff is empty.")
@@ -301,6 +300,31 @@ def run_review(repo: Path, config: dict[str, Any], feature: str, scope: str | No
             print(f"{model_id}: exit {result.returncode}")
     if success_count == 0:
         fail("All review agents failed. See .review-forge/artifacts logs.")
+
+
+def resolve_review_scope(repo: Path, scope: str | None, base: str | None) -> tuple[str | None, str | None]:
+    if scope or base:
+        return scope, base
+    branch = current_branch(repo)
+    if not branch or branch in {"main", "master"}:
+        return "working", None
+    detected_base = detect_base_ref(repo)
+    if not detected_base:
+        fail("Cannot infer review base. Pass --scope working or --base <ref> explicitly.")
+    return None, detected_base
+
+
+def current_branch(repo: Path) -> str:
+    result = git(repo, ["branch", "--show-current"], check=False)
+    return result.stdout.strip() if result.returncode == 0 else ""
+
+
+def detect_base_ref(repo: Path) -> str | None:
+    for candidate in ["origin/main", "origin/master", "main", "master"]:
+        result = git(repo, ["rev-parse", "--verify", "--quiet", candidate], check=False)
+        if result.returncode == 0:
+            return candidate
+    return None
 
 
 def run_synthesize(repo: Path, config: dict[str, Any], feature: str) -> None:

@@ -143,6 +143,43 @@ class ReviewForgeRunnerTests(unittest.TestCase):
 
         self.assertIn("+two", diff)
 
+    def test_resolve_review_scope_on_main_uses_working_diff(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            subprocess.run(["git", "init"], cwd=repo, check=True, capture_output=True)
+            subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=repo, check=True)
+            subprocess.run(["git", "config", "user.name", "Test"], cwd=repo, check=True)
+            (repo / "tracked.txt").write_text("one\n", encoding="utf-8")
+            subprocess.run(["git", "add", "tracked.txt"], cwd=repo, check=True)
+            subprocess.run(["git", "commit", "-m", "init"], cwd=repo, check=True, capture_output=True)
+
+            scope, base = runner.resolve_review_scope(repo, None, None)
+
+        self.assertEqual((scope, base), ("working", None))
+
+    def test_resolve_review_scope_on_feature_branch_uses_main_base(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            subprocess.run(["git", "init"], cwd=repo, check=True, capture_output=True)
+            subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=repo, check=True)
+            subprocess.run(["git", "config", "user.name", "Test"], cwd=repo, check=True)
+            (repo / "tracked.txt").write_text("one\n", encoding="utf-8")
+            subprocess.run(["git", "add", "tracked.txt"], cwd=repo, check=True)
+            subprocess.run(["git", "commit", "-m", "init"], cwd=repo, check=True, capture_output=True)
+            subprocess.run(["git", "branch", "-M", "main"], cwd=repo, check=True)
+            subprocess.run(["git", "switch", "-c", "feature"], cwd=repo, check=True, capture_output=True)
+
+            scope, base = runner.resolve_review_scope(repo, None, None)
+
+        self.assertEqual((scope, base), (None, "main"))
+
+    def test_explicit_review_scope_is_not_overridden(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+
+            self.assertEqual(runner.resolve_review_scope(repo, "working", None), ("working", None))
+            self.assertEqual(runner.resolve_review_scope(repo, None, "origin/main"), (None, "origin/main"))
+
     def test_collect_untracked_files_rejects_paths_outside_repo(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

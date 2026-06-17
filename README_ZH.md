@@ -338,11 +338,13 @@ CRAWL4AI_TOKEN=YOUR_SECRET_TOKEN
 - 🔐 **单一本地工作区**：配置、运行时 prompt 和 review 产物都放在被忽略的 `.review-forge/`
 - 🧷 **首次运行配置门禁**：`init` 默认生成 `config_ready: false`，用户确认模型配置前不会运行 review/fix
 - 🔌 **可选连通性检查**：`check-config` 可在正式流程前测试各角色模型是否能跑通
+- 🧭 **自动判断范围**：在 `main`/`master` 默认审 working diff，在功能分支默认审相对主分支的 diff
 
 **使用示例：**
 ```
 "使用 multi-agent-review 审查未提交改动"
 "用 multi-agent-review review 当前分支相对 origin/main 的修改"
+"使用 multi-agent-review review 当前分支"
 "使用 multi-agent-review，生成 summary 后停下来让我选择要修的问题"
 "只用 multi-agent-review 生成 review summary"
 ```

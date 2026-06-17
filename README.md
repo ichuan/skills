@@ -328,11 +328,13 @@ Configurable multi-model code review workflow using local Claude Code or Codex C
 - 🔐 **Single local workspace**: Stores config, runtime prompts, and review artifacts under ignored `.review-forge/`
 - 🧷 **First-run config gate**: `init` creates `config_ready: false`; review/fix commands refuse to run until the user confirms model settings
 - 🔌 **Optional connectivity check**: `check-config` tests configured role models before the real workflow starts
+- 🧭 **Scope inference**: Defaults to working diff on `main`/`master`, or branch-vs-main review on feature branches
 
 **Usage:**
 ```
 "Use multi-agent-review to review my uncommitted changes"
 "Run multi-agent-review against origin/main"
+"Use multi-agent-review to review this branch"
 "Use multi-agent-review, then stop after summary so I can choose what to fix"
 "Use multi-agent-review only to produce a review summary"
 ```

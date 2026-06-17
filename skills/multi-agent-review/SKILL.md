@@ -38,11 +38,13 @@ See `references/config.md` for the supported config shape.
 
 ## Scope
 
-Before running review, determine the target diff scope.
+When the user does not specify a target diff scope, let the runner infer it.
 
 - If the user explicitly asks for uncommitted changes, use `--scope working`.
 - If the user explicitly asks for changes against a branch, use `--base origin/main`, `--base origin/master`, or the requested ref.
-- If the user does not specify, ask one concise question before running review.
+- If the user does not specify and the current branch is `main` or `master`, the runner reviews the working diff.
+- If the user does not specify and the current branch is not `main` or `master`, the runner reviews the branch against the first available base from `origin/main`, `origin/master`, `main`, `master`, plus the working diff.
+- Ask only if the runner cannot infer a base or the user asks for an unusual comparison.
 
 When `--base` is used, the runner includes both `git diff <base>...HEAD` and the current working tree diff.
 For both scope modes, the runner also includes small untracked text files, while excluding `.review-forge/`.
@@ -63,6 +65,9 @@ python <skill-dir>/scripts/review_forge_runner.py check-config
 
 # Review uncommitted changes
 python <skill-dir>/scripts/review_forge_runner.py review --feature checkout-refactor --scope working
+
+# Let runner infer scope from current branch
+python <skill-dir>/scripts/review_forge_runner.py review --feature checkout-refactor
 
 # Review current branch against origin/main, including uncommitted changes
 python <skill-dir>/scripts/review_forge_runner.py review --feature checkout-refactor --base origin/main
