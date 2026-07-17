@@ -1731,8 +1731,7 @@ class IterativeCodeReviewSkillTests(unittest.TestCase):
 
         self.assertIn("review-only", skill)
         self.assertIn("review-and-fix", skill)
-        self.assertIn("max_iterations", skill)
-        self.assertIn("`3`", skill)
+        self.assertIn("| `max_iterations` | `8` |", skill)
         self.assertIn("主 session", skill)
         self.assertIn("不读取完整 diff", skill)
         self.assertIn("动态并发", skill)

@@ -31,7 +31,7 @@ review and fix my changes with iterative-code-review
 | 参数 | 默认值 | 说明 |
 |---|---:|---|
 | `mode` | 自动推断 | `review-only` 或 `review-and-fix` |
-| `max_iterations` | `3` | 包含初始 review；相同问题重复或无进展时提前停止 |
+| `max_iterations` | `8` | 包含初始 review；相同问题重复或无进展时提前停止 |
 | `base` | 自动检测 | 显式值优先；否则尝试远端默认分支、本地 `main/master` |
 | `verification_policy` | `trusted-full-access` | 默认继承可信开发 session 的宿主权限且无需逐条确认；不可信仓库显式选择 `no-exec` |
 

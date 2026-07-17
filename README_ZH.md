@@ -107,7 +107,7 @@ cp -r skills/skills/multi-agent-review ./.claude/skills/
 
 **功能特性：**
 - 🤖 **动态并发 sub-agent**：覆盖需求完整性、逻辑、边界、安全、质量、测试和实际运行结果
-- 🔁 **验证驱动的迭代**：修复后重新冻结完整 diff，默认最多 3 轮
+- 🔁 **验证驱动的迭代**：修复后重新冻结完整 diff，默认最多 8 轮
 - 🧹 **薄主 session**：diff、详细 findings、修复过程和测试日志通过 Git 内部 artifact 交接
 - 🎯 **完整范围**：同时覆盖 branch commits、staged、unstaged 与 untracked 文件
 - 💣 **影响范围保护**：High impact 修复不自动执行；确认只用于后续显式实现任务
