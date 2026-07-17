@@ -96,26 +96,26 @@ Minimalist project roadmap management based on position-based priority system.
 
 ### iterative-code-review
 
-Multi-agent iterative code review with auto-fix, running until convergence.
+Isolated sub-agents perform code review, optional fixes, and independent verification while the development session receives only compact results.
 
 **Use Cases:**
 - Automated quality gate after finishing a feature or fix
 - Catch bugs, security issues, and reliability problems before merging
-- Self-healing loop: review → fix → re-review until no issues remain
+- One-line invocation selects review-only or review-and-fix and verifies every fix
 
 **Features:**
-- 🤖 **5 parallel sub-agents**: Correctness, Security, Performance, Reliability, Code Quality — each reviews independently in a fresh context
-- 🔁 **Iterative loop**: Fixes trigger a new review round; stops when converged or `max_iterations` reached
-- 🧹 **Main session isolation**: Sub-agents fetch their own `git diff`; main session context stays clean
-- 🎯 **Noise filter**: Only Critical / High issues with Confidence ≥ 0.70 are auto-fixed
-- 💣 **Blast Radius guard**: High-impact fixes (public API changes) require elevated confidence
-- 📋 **Structured final report**: Fixed / skipped issues table, residual risk, merge recommendation
+- 🤖 **Dynamic sub-agent concurrency**: Covers requirements, correctness, edge cases, security, quality, tests, and runtime evidence
+- 🔁 **Verification-driven loop**: Re-freezes the complete diff after fixes, with 3 iterations by default
+- 🧹 **Thin main session**: Diff, detailed findings, fix work, and logs move through Git-internal artifacts
+- 🎯 **Complete scope**: Includes branch commits, staged, unstaged, and untracked files
+- 💣 **Blast-radius guard**: High-impact fixes are never auto-applied; confirmation is recorded for explicit follow-up
+- 📋 **Evidence-backed report**: Records commands, exit codes, unverifiable requirements, residual risk, and conditional merge advice
 
 **Usage:**
 ```
 "Do a code review using iterative-code-review skill"
+"Use iterative-code-review for review fix iteration"
 "review and fix my changes"
-"iterative code review, max_iterations=5"
 ```
 
 **Details:** See [skills/iterative-code-review](./skills/iterative-code-review)

@@ -1,59 +1,54 @@
-# Code Review Checklist
+# Review Checklist
 
-各 reviewer sub-agent 可引用此文件中对应的维度检查项，补充其 prompt 中列出的核心检查点。
+只报告由本次改动引入或直接暴露的问题。可以读取完整文件、调用方、配置和测试来建立因果链；
+不要把“问题位置不在新增行”误判为 out of scope。
 
----
+## 需求完整性
 
-## Security
+- 将可靠的需求或验收标准映射到实现和测试证据。
+- 检查遗漏行为、超出需求的行为、兼容性和文档承诺。
+- 没有可靠 requirement source 时标记“无法验证”，继续其他维度。
+- 不得从当前实现、diff 或已有测试反推需求。
 
-- [ ] No hardcoded credentials, API keys, or secrets in source code
-- [ ] No SQL injection vulnerabilities (parameterized queries used)
-- [ ] No XSS vulnerabilities (user output properly escaped)
-- [ ] No command injection vulnerabilities (user input not passed to shell)
-- [ ] Input validation for all user-provided data at system boundaries
-- [ ] Proper authentication and authorization checks on every protected route
-- [ ] Sensitive data encrypted at rest (passwords hashed, PII not stored in plaintext)
-- [ ] No unsafe deserialization of user-controlled data
-- [ ] CORS configured correctly (not `*` on credentialed endpoints)
-- [ ] Rate limiting in place for public-facing APIs
-- [ ] No path traversal risk (user-supplied paths sanitized / restricted)
+## 逻辑正确性
 
-## Performance
+- 核对数据流、状态转换、返回值、错误语义和 API/数据合约。
+- 检查调用方、消费者、迁移和配置是否因变更被破坏。
+- 验证并发安全、事务一致性、幂等性和循环/递归终止条件。
+- finding 必须给出能触发问题的具体输入、状态或执行路径。
 
-- [ ] No N+1 query problems (batch or join instead of looping DB calls)
-- [ ] Database queries target indexed columns (large table scans flagged)
-- [ ] No unnecessary synchronous / blocking operations on async paths
-- [ ] Large datasets paginated or streamed (not loaded entirely into memory)
-- [ ] No memory leaks (file handles, DB connections, event listeners closed)
-- [ ] Efficient algorithms — avoid O(n²) when O(n log n) or better is feasible
-- [ ] Loop-invariant computations hoisted out of loops
-- [ ] Heavy or repeated resources cached where appropriate
+## 边界情况
 
-## Correctness & Reliability
+- 空值、空集合、零、负数、极值、溢出、Unicode 和格式异常。
+- 首尾边界、off-by-one、重复输入、乱序、部分成功和重复执行。
+- 超时、取消、重试耗尽、依赖失败、资源不足和清理路径。
+- 并发访问、竞态、锁顺序以及跨版本或平台差异。
 
-- [ ] All error cases handled — no silent swallowing of exceptions
-- [ ] No catch-all handlers that hide real errors (`except Exception: pass`)
-- [ ] Resources cleaned up in `finally` / `defer` / `using` blocks
-- [ ] Database operations wrapped in transactions; rolled back on error
-- [ ] Proper HTTP status codes returned (errors don't return 200)
-- [ ] External calls have timeouts and retry logic where appropriate
-- [ ] Null / None / undefined checks where values can be absent
-- [ ] Race conditions and thread safety considered for shared state
-- [ ] Loop / recursion termination conditions are correct
-- [ ] Off-by-one errors checked (index bounds, range endpoints)
-- [ ] No debug output (console.log / print / pprint) left in committed code
+## 安全性、可靠性与性能
 
-## Code Quality & Best Practices
+- 检查信任边界上的输入验证、输出编码、认证、授权和敏感数据处理。
+- 检查 SQL/命令/模板注入、路径穿越、XSS、CSRF、SSRF、不安全反序列化和 secret 泄漏。
+- 检查异常吞噬、资源泄漏、事务回滚、超时，以及仅在安全且幂等时使用的重试。
+- 检查依赖和配置是否引入已知高风险漏洞或不安全默认值。
+- 仅在存在现实输入规模或执行路径证据时报告 N+1、阻塞 I/O、无界内存或复杂度退化。
 
-- [ ] Functions / methods have single responsibility (not doing too many things)
-- [ ] No duplicated code blocks — DRY principle applied
-- [ ] Magic numbers and magic strings extracted to named constants
-- [ ] Variable / function names are clear and meaningful (avoid `data`, `tmp`, `flag`)
-- [ ] No commented-out code blocks committed
-- [ ] Complex or non-obvious logic has a "Why" comment explaining intent
-- [ ] No deprecated APIs used
-- [ ] No dependencies with known critical vulnerabilities introduced
-- [ ] Configuration values externalized (not hardcoded — use env vars or config files)
-- [ ] Public API documentation updated when signatures change
-- [ ] REST endpoints follow project conventions (verbs, status codes, URL structure)
-- [ ] Logging uses appropriate levels (debug / info / warn / error); no sensitive data logged
+## 代码质量
+
+- 判断设计是否比需求所需更复杂，是否增加修改时引入 bug 的概率。
+- 检查职责混乱、实质重复、晦涩控制流、废弃 API、错误文档和项目约定不一致。
+- 不机械要求 DRY、常量提取、环境变量或新抽象；先证明它们影响本次改动风险。
+- 允许报告高置信度 Medium 维护性问题，但纯命名、格式和个人偏好不报告。
+
+## 测试覆盖
+
+- 将每个新增或改变的行为映射到适当层级的单元、集成或端到端测试。
+- 覆盖正常路径、错误路径、关键边界和已修复缺陷的回归测试。
+- 检查断言是否能在行为损坏时失败，而不是只验证 mock 或实现细节。
+- 不以覆盖率百分比代替行为覆盖；仅在项目已有 coverage 工具时把结果作为辅助证据。
+
+## 实际运行结果
+
+- 从 manifest、CI 配置和开发文档识别项目已有命令，不凭空发明命令。
+- 优先运行相关测试，再按风险运行 lint、typecheck、build、完整测试或本地 smoke。
+- 记录 command、exit code、状态、关键证据和跳过原因。
+- 禁止把“未运行”“全部跳过”或旧 CI 状态写成 green。

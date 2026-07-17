@@ -1,334 +1,239 @@
 ---
 name: iterative-code-review
 description: >
-  对本次 diff 进行多维 code review 并自动修复，循环迭代直到收敛或达到最大轮次。
-  适用场景：开发完成一个 feature 或 fix 后，在提交/建 MR 前做质量保障。
-  触发关键词：「code review」「review 一下代码」「使用 iterative-code-review skill」
-  「review and fix」「做 code review」「检查代码质量」。
+  Use when 开发者要求在提交或合并前审查工作区、暂存区或分支 diff，尤其是明确要求
+  review-and-fix、修复后复验或迭代到收敛时。适用于 Codex 和 Claude 的隔离 sub-agent 工作流；
+  若用户要求可配置的外部 CLI 多模型与人工勾选流程，使用 multi-agent-review。
 ---
 
-# Iterative Code Review & Auto-Fix
+# Iterative Code Review
 
-对本次改动（diff against main/target branch）执行多 agent 并发 review，
-主 session 聚合结果、过滤噪音、修复真实问题，并循环迭代直至收敛。
+把主开发 session 当作薄控制面：它只推断模式、生成短需求摘要、调度隔离 agent，并转发最终压缩报告。
+完整 diff、源码、详细 findings、修复过程和测试日志始终通过 Git 内部 artifact 交接，不进入主 session。
 
-## 设计原则
+## 调用兼容性
 
-1. **Diff 隔离**：仅分析本次改动引入的新增/修改行，预先存在的问题不在此次范畴。
-2. **最小干预**：只修 Critical / High 级别的真实 bug；风格、命名、锦上添花一律跳过。
-3. **置信度门槛**：Confidence < 0.70 的 issue 默认跳过，防止误改。
-4. **Blast Radius 控制**：影响公开接口或跨模块的修复，需二次确认 / 降低置信度后才执行。
-5. **迭代收敛**：修复后自动重新 review，直到无剩余问题或达到 `max_iterations`。
+原有的一句话调用继续有效，无需用户每次提供需求或参数：
 
----
+```text
+使用 iterative-code-review 做 review fix 迭代
+review and fix my changes with iterative-code-review
+```
+
+模式自动推断：
+
+- 明确出现 `fix`、`修复`、`review-and-fix` 或“修复后迭代” → `review-and-fix`。
+- 只要求 `review`、检查或报告 → `review-only`，禁止修改工作区。
+- 用户显式指定模式时，以用户输入为准。
 
 ## 参数
 
 | 参数 | 默认值 | 说明 |
-|------|--------|------|
-| `max_iterations` | `8` | 最大迭代轮次 |
-| `target_branch` | 自动检测 | 优先使用 `main`，不存在则回退到 `master` |
-| `confidence_threshold` | `0.70` | 低于此值的 issue 不处理 |
-| `fix_impact_limit` | `MEDIUM` | 超出此 impact 等级则跳过（可选 LOW / MEDIUM / HIGH） |
+|---|---:|---|
+| `mode` | 自动推断 | `review-only` 或 `review-and-fix` |
+| `max_iterations` | `3` | 包含初始 review；相同问题重复或无进展时提前停止 |
+| `base` | 自动检测 | 显式值优先；否则尝试远端默认分支、本地 `main/master` |
+| `verification_policy` | `trusted-full-access` | 默认继承可信开发 session 的宿主权限且无需逐条确认；不可信仓库显式选择 `no-exec` |
 
----
+## 上下文隔离契约
 
-## 调用方式
+主 session 只允许保留：
 
+- 工作目录、`mode`、`base`、轮次和 artifact 路径；
+- 从当前开发对话压缩出的 3～10 条 `task_contract`；
+- agent 的完成回执和最终短报告。
+
+主 session **不读取完整 diff**、源码、reviewer JSON、完整测试日志，也不亲自聚合 findings 或应用修复。
+reviewer、synthesizer、fixer、verifier 通过文件传递详细信息，最终响应必须遵守生成 prompt 中的长度限制。
+
+运行 artifact 写入 Git 内部路径：
+
+```text
+<git-path>/iterative-code-review/<run-id>/iteration-N/
 ```
-完成 <feature/fix> 的代码和测试后，使用 iterative-code-review skill 做 code review。
 
-参数：
-- max_iterations = 5
-```
+它不会进入工作树或被提交。不要把 artifact 内容复制回主对话。
 
----
+## 需求上下文自动提取
 
-## 完整工作流
+用户不需要额外提供需求。主 session 在不复制完整对话的前提下，按顺序生成短 `task_contract`：
 
-### 阶段 0：准备上下文（主 session 只做一次）
+1. 当前 session 中明确的原始需求和验收标准；
+2. 用户给出的 spec、plan、issue、PR 或文档路径；
+3. 若仍无可靠来源，留空。
 
-主 session **不**在自己的上下文中执行 git 命令或载入 diff 内容。
-主 session 只需确定以下两件事，传递给后续每个 sub-agent：
+不得从 diff 或现有实现反推需求。需求为空时，requirements reviewer 标记“无法验证”并继续其他维度；
+只有需求歧义会改变公开行为或触发 High impact 修复时，才向用户询问。
 
-1. **target_branch 检测指令**（sub-agent 自行执行）：
+将摘要写到工作树之外的临时文件时使用环境提供的文件编辑工具；不要把用户文本插值进 shell 命令。
+
+## 工作流
+
+### 1. 冻结本轮范围并生成 prompt
+
+运行 skill 自带脚本；它只向主 session 输出短 JSON 路径索引，diff 内容直接落盘：
 
 ```bash
-# sub-agent 应在工作目录中执行以下命令来确定基准分支：
-git branch -r | grep -q 'origin/main' && echo main || echo master
-# 将输出结果作为 <target_branch> 使用
+python <skill-dir>/scripts/prepare_review.py \
+  --repo <WORKDIR> \
+  --mode <review-only|review-and-fix> \
+  [--base <ref>] \
+  [--verification-policy <trusted-full-access|no-exec|sandboxed|approved>] \
+  [--approved-command <exact-command>] \
+  [--task-contract-file <temporary-contract-file>]
 ```
 
-2. **diff 获取指令**（sub-agent 自行执行，不传 diff 内容给主 session）：
+默认 `trusted-full-access`：sub-agent 继承宿主为当前可信开发 session 提供的 full access，无需逐条确认。
+skill 不授予或提升宿主权限，也不会把 full access 伪装成沙箱。不熟悉或不信任仓库内容时，显式选择 `no-exec`。
+只有宿主明确证明当前环境是隔离的真实沙箱时才选择 `sandboxed`。
+`approved` 只接受用户逐条明确批准的完整命令字符串，且 `--approved-command` 可重复。
+
+后续轮次复用返回的 `run_id`，增加 `--iteration N`。范围同时包含：
+
+- `base...HEAD` 的已提交改动；
+- staged；
+- unstaged；
+- untracked 文件清单与不超过 runner 限额的内容快照；超限文件记录 scope limitation。
+
+在 `main/master` 上没有 base 时，只审查 working tree。脚本无法可靠推断 base 时继续 working-tree review，
+并在报告中说明 committed branch diff 未验证；不要猜测不存在的远端引用。
+
+### 2. 隔离并行 review
+
+读取脚本返回的 `reviewer_prompts` 路径，只把“读取该 prompt 并执行”的最小消息发给 fresh-context agent：
+
+- Codex：使用隔离 agent，能控制继承时设置 `fork_turns=none`。
+- Claude：使用 fresh-context sub-agent，只传 prompt 文件路径，不传开发对话。
+- 其他环境：使用等价 agent API；没有 sub-agent 时明确报告无法满足隔离契约，不在主 session 降级读取 diff。
+
+采用**动态并发**：并发数不超过可用槽位减去主 session；槽位不足时分批或顺序执行。
+三个角色覆盖：
+
+1. 需求完整性、逻辑正确性、边界情况；
+2. 安全性、可靠性、性能；
+3. 代码质量、测试覆盖、实际运行命令识别。
+
+每个 reviewer 把详细 JSON 写入 artifact，最终只返回一行完成回执。
+全部完成后，不读取 JSON 内容，改用 runner 校验结构：
 
 ```bash
-# 确定 target_branch 后，sub-agent 运行：
-git --no-pager diff origin/<target_branch>...HEAD
-git --no-pager diff --name-only origin/<target_branch>...HEAD
+python <skill-dir>/scripts/prepare_review.py \
+  --validate-artifact-dir <iteration-artifact-dir> \
+  --validate-phase reviewers
 ```
 
-> 主 session 上下文中只保留：「当前工作目录路径」和「传递给 sub-agent 的上述两条指令」。
-> diff 原文、文件列表均由各 sub-agent 自己获取，不注入主 session。
+随后用 `--validate-phase scope` 确认工作区仍与冻结范围一致。汇总、修复和验证前都必须再次校验 scope；
+若指纹变化，本轮结果作废，回到阶段 1 生成新 iteration，禁止对旧 findings 应用修复。
 
----
+校验失败时仅重试对应 agent 一次；仍失败则停止并报告 artifact 不完整，不能把缺失结果当作无问题。
 
-### 阶段 1：多 Agent 并发 Review（每轮执行一次）
+### 3. 隔离汇总
 
-使用 `runSubagent` **并行**启动 5 个独立 reviewer，互不干扰。
+启动 fresh-context synthesizer，只传 `synthesis_prompt` 路径。它负责：
 
-> **重要**：每个 sub-agent 自行在项目目录中运行 git 命令获取 diff，**主 session 不传入 diff 内容**。
-> 主 session 只在 prompt 中告知 sub-agent：工作目录路径、branch 检测方法、输出格式要求。
+- 按根因和证据去重；
+- 区分 `severity`、`confidence`、`impact`，禁止平均 confidence 或用 impact 修改 confidence；
+- 保留有证据的 Critical/High 和确实增加本次风险的 Medium，过滤纯 nit；
+- 写入 `summary.json`，只返回不超过 10 行的 blocker 摘要。
 
-各 reviewer 的 prompt 模板如下（`<WORKDIR>` 替换为实际项目路径）：
+finding 可以位于调用方、测试或配置中，但必须说明它如何由本次改动引入或直接暴露。
+完成后用同一 runner 的 `--validate-phase synthesis` 校验，不在主 session 打开 `summary.json`。
 
-#### Reviewer A — Correctness（逻辑正确性）
+### 4. 独立运行验证
 
-```
-Prompt:
-你是一个代码逻辑审查员。
+启动 fresh-context verifier，只传 `verify_prompt` 路径。由它读取项目 manifest、CI 和文档，执行最强可行的：
 
-首先在工作目录 <WORKDIR> 执行以下命令获取本次改动：
-  1. 检测基准分支：git branch -r | grep -q 'origin/main' && echo main || echo master
-  2. 获取 diff：git --no-pager diff origin/<target_branch>...HEAD
-  3. 获取改动文件列表：git --no-pager diff --name-only origin/<target_branch>...HEAD
+- 相关测试；
+- lint、typecheck、build；
+- 完整测试或安全的本地 smoke test。
 
-仅分析上述 diff 中新增/修改的行，不分析 diff 范围之外的代码。
+实际执行受 `verification_policy` 约束：
 
-重点检查：
-- 逻辑错误 / 边界条件
-- Null / None / undefined 处理
-- 并发竞态条件 / 线程安全
-- 循环 / 递归终止条件
-- 数据类型不匹配
-- 遗漏的边界 case（off-by-one、空集合、负数）
-- debug 输出（console.log / print / pprint）遗留在代码中
+- `trusted-full-access`（默认）：可信仓库中继承宿主 full access 直接执行验证，无需逐条确认；仍禁止联网、凭证、危险命令及未经授权的外部写入。
+- `no-exec`：只发现命令，全部按真实 `required` 值记为 skipped，不执行仓库或项目命令，结论不得为 green。
+- `sandboxed`：仅在宿主证明的真实沙箱内执行，并继续禁止联网、凭证、危险命令及未经授权的写入。
+- `approved`：只执行 allowlist 中完全一致的命令字符串，其他命令全部 skipped。
 
-详细检查项参见 references/review-checklist.md 中的 "Correctness & Reliability" 部分。
+用户明确批准命令后，必须创建新的 iteration，不得改写旧 artifact；重复传入精确命令：
 
-严格输出格式（每个 issue 一条，不得省略字段）：
-
-Severity: Critical|High|Medium|Low
-Category: Bug
-Location: <文件名>:<行号>
-Issue: <一句话描述>
-Why it matters: <为什么这会出问题>
-Fix: <最小化修复方案>
-In-scope: Yes|No  (No = 此行在本次 diff 之外)
-Confidence: 0.0–1.0
-
-若无任何 issue，输出：NO_ISSUES
+```bash
+python <skill-dir>/scripts/prepare_review.py \
+  --repo <WORKDIR> \
+  --run-id <run-id> \
+  --iteration <next-N> \
+  --mode <review-only|review-and-fix> \
+  --verification-policy approved \
+  --approved-command '<exact-command-1>' \
+  --approved-command '<exact-command-2>'
 ```
 
-#### Reviewer B — Security（安全性）
+每条结果记录 command、exit code、状态和证据。禁止部署、破坏性命令、真实凭证调用和未经授权的外部写入。
+命令可能写源码且无法放入安全临时副本时跳过并记录限制。
+必需检查失败时不得标记 green；全部跳过时不得声称“可安全合并”。
+完成后使用 `--validate-phase verification` 校验 artifact。
 
-```
-Prompt:
-你是一个安全代码审查员。
+### 5. 可选修复
 
-首先在工作目录 <WORKDIR> 执行以下命令获取本次改动：
-  1. 检测基准分支：git branch -r | grep -q 'origin/main' && echo main || echo master
-  2. 获取 diff：git --no-pager diff origin/<target_branch>...HEAD
-  3. 获取改动文件列表：git --no-pager diff --name-only origin/<target_branch>...HEAD
+`review-only` 跳过本阶段。
 
-仅分析上述 diff，重点检查（OWASP Top 10）：
-- 注入攻击（SQL / Command / LDAP Injection）
-- 不安全的反序列化
-- 敏感数据 / Secret 硬编码或泄漏（API keys、密码、token）
-- 身份认证 / 权限校验缺失
-- 路径穿越（Path Traversal）
-- XSS / CSRF 风险
-- 用户输入未经验证直接使用
-- CORS 配置不当
-- 明文传输敏感数据（密码、PII 未加密存储）
+`review-and-fix` 中，启动 fresh-context fixer，只传 `fix_prompt` 路径：
 
-详细检查项参见 references/review-checklist.md 中的 "Security" 部分。
+- 自动修复仅限 High confidence、Low/Medium impact 的 Critical/High finding；
+- High impact 必须暂停并请求用户确认，impact 与 confidence 不做数学换算；短回执最多列出 3 个候选的 `ID | 行为影响 | 拟议修复`；
+- 用户确认后，主 session 只把获批 ID 交给 runner 校验并写入授权文件，不读取或复制完整 summary：
 
-输出格式同上，Category 固定为 Security。若无任何 issue，输出：NO_ISSUES
+```bash
+python <skill-dir>/scripts/prepare_review.py \
+  --approve-artifact-dir <iteration-artifact-dir> \
+  --approve-id <finding-id> [--approve-id <finding-id>]
 ```
 
-#### Reviewer C — Performance（性能）
+主 session 只保留 runner 返回的短 `approval_digest`。启动 fixer 前和完成后都执行：
 
-```
-Prompt:
-你是一个性能代码审查员。
-
-首先在工作目录 <WORKDIR> 执行以下命令获取本次改动：
-  1. 检测基准分支：git branch -r | grep -q 'origin/main' && echo main || echo master
-  2. 获取 diff：git --no-pager diff origin/<target_branch>...HEAD
-  3. 获取改动文件列表：git --no-pager diff --name-only origin/<target_branch>...HEAD
-
-仅分析上述 diff，重点检查：
-- N+1 查询
-- 低效循环 / 重复计算（可提取到循环外的不变量）
-- 不必要的内存分配（大对象、未释放的资源）
-- 算法复杂度退化（O(n²) 或更差，当 O(n log n) 可行时）
-- 数据库查询缺少索引（大表全表扫描）
-- 大数据集未分页或流式处理
-- 不必要的同步阻塞操作
-- 重复加载本可缓存的资源
-
-详细检查项参见 references/review-checklist.md 中的 "Performance" 部分。
-
-输出格式同上，Category 固定为 Performance。若无任何 issue，输出：NO_ISSUES
+```bash
+python <skill-dir>/scripts/prepare_review.py \
+  --approve-artifact-dir <iteration-artifact-dir> \
+  --validate-approval-digest <approval-digest>
 ```
 
-#### Reviewer D — Reliability（可靠性）
+任一次不匹配都拒绝接受修复结果；fixer 无权修改授权文件。未发生 High-impact 确认时，使用阶段 1 返回的初始 digest。
+digest 只证明 artifact 前后字节一致，不是针对同权限恶意 agent 的安全边界。当前 runner 不提供按 finding 的写能力隔离或条件 patch 应用，
+因此 High-impact 项即使得到确认也不由本轮 fixer 执行：记录确认后停止，并把该 ID 交给用户另行发起显式实现任务。
+- 能测试的缺陷先建立会因该缺陷失败的最小回归测试，再做最小修复；
+- 不重构无关代码，不覆盖用户改动，不提交、不推送、不创建 PR。
 
-```
-Prompt:
-你是一个可靠性代码审查员。
+修复后回到阶段 1，重新冻结 updated diff 并 review。主 session 不亲自编辑。
+修复 agent 完成后使用 `--validate-phase fixes` 校验 artifact；校验失败不得进入下一轮。
 
-首先在工作目录 <WORKDIR> 执行以下命令获取本次改动：
-  1. 检测基准分支：git branch -r | grep -q 'origin/main' && echo main || echo master
-  2. 获取 diff：git --no-pager diff origin/<target_branch>...HEAD
-  3. 获取改动文件列表：git --no-pager diff --name-only origin/<target_branch>...HEAD
+### 6. 收敛与最终报告
 
-仅分析上述 diff，重点检查：
-- 异常 / 错误未捕获或被吞掉（catch 后无处理）
-- 资源泄漏（文件句柄、数据库连接、锁未释放）
-- 重试 / 超时缺失（外部调用）
-- 关键操作缺少日志（无法追溯问题）
-- 数据库操作缺少事务，错误时未回滚
-- 使用 catch-all handler 掩盖真实错误
-- finally / defer 块中的清理逻辑缺失
-- HTTP 状态码不正确（成功操作返回 200 但实际失败）
+满足以下全部条件才算收敛：
 
-详细检查项参见 references/review-checklist.md 中的 "Error Handling & Reliability" 部分。
-
-输出格式同上，Category 固定为 Reliability。若无任何 issue，输出：NO_ISSUES
+```text
+无未解决 blocker
+AND 必需验证为 green
+AND 本轮没有产生新的 actionable finding
 ```
 
-#### Reviewer E — Code Quality（代码质量）
+需求“无法验证”不是自动失败，但最终结论必须带限制。出现以下任一条件提前停止并报告：
 
-```
-Prompt:
-你是一个代码质量审查员，专注于可维护性与最佳实践。
+- 达到 `max_iterations`；
+- 相同 finding 在连续两轮重复；
+- 工作树没有变化且验证仍失败；
+- 需要用户确认的 High impact 修复。
 
-首先在工作目录 <WORKDIR> 执行以下命令获取本次改动：
-  1. 检测基准分支：git branch -r | grep -q 'origin/main' && echo main || echo master
-  2. 获取 diff：git --no-pager diff origin/<target_branch>...HEAD
-  3. 获取改动文件列表：git --no-pager diff --name-only origin/<target_branch>...HEAD
+最后启动 fresh-context reporter，只传 `report_prompt` 路径。完整报告写入 artifact，主 session 只转发其短报告，包含：
 
-仅分析上述 diff，重点检查：
-- 函数 / 方法违反单一职责（过长、承担多个职责）
-- 重复代码（DRY 原则）
-- 魔法数字 / 魔法字符串未提取为命名常量
-- 变量 / 函数命名含糊（data、tmp、flag、result 等）
-- 注释掉的代码块遗留在提交中
-- 复杂逻辑缺少必要的 Why 注释（不是 What 注释）
-- 使用了已废弃的 API 或有已知漏洞的依赖版本
-- 配置项硬编码（应外部化到环境变量或配置文件）
-- 公开 API 文档未更新（函数签名变化但文档没跟上）
-- REST 接口不符合约定（动词/状态码/路径风格不一致）
+- 需求验证状态；
+- 已修复与未解决数量；
+- 实际运行的验证及结果；
+- 遗留风险、跳过项和带条件的合并建议；
+- 完整 artifact 路径。
 
-**注意**：仅上报 High / Critical 级别的质量问题（会导致明显维护负担或隐性 bug 的），
-纯风格问题（缩进、括号风格等）一律不上报。
+## 约束
 
-详细检查项参见 references/review-checklist.md 中的 "Code Quality & Best Practices" 部分。
-
-输出格式同上，Category 固定为 CodeQuality。若无任何 issue，输出：NO_ISSUES
-```
-
----
-
-### 阶段 2：聚合与去重
-
-收集 5 个 reviewer 的结果，主 session 执行：
-
-1. **合并同源 issue**：相同文件 + 相近行 + 相同根因 → 合并为一条，Severity 取最高，Confidence 取均值。
-2. **过滤条件**（同时满足所有条件才保留）：
-   - `Severity ∈ {Critical, High}`
-   - `In-scope == Yes`（文件在本次 diff 范围内）
-   - `Confidence >= confidence_threshold`（默认 0.70）
-3. 丢弃所有 Medium / Low issue（列入"已知但不修"清单，附在最终报告末尾）。
-
----
-
-### 阶段 3：Blast Radius 评估（修复前）
-
-对每个待修 issue，主 session 估算：
-
-| 影响等级 | 判断标准 |
-|----------|---------|
-| `LOW` | 仅修改函数内部，不改签名、不影响调用方 |
-| `MEDIUM` | 影响同一模块内的多个函数，但不改公开接口 |
-| `HIGH` | 改变公开 API / 接口签名 / 跨模块影响 |
-
-规则：
-- `HIGH` impact → Confidence 降低 0.15，若降后低于 threshold → 跳过并在报告中标注 "Blocked: High Impact"。
-- 禁止在此过程中引入新的抽象层或重构未改动的代码。
-
----
-
-### 阶段 4：应用修复
-
-对每个通过过滤的 issue：
-
-1. 应用**最小化修复**，不重构非相关代码，不改变原有意图。
-2. 修复后对该文件执行自我审查：
-   - 是否引入新的 bug？
-   - 是否过度工程化？
-   - 是否改变了原有行为？
-3. 若自我审查发现问题，撤销该修复并标记为 "Fix Reverted: Self-review failed"。
-
----
-
-### 阶段 5：迭代判断
-
-```
-if (iteration >= max_iterations):
-    → 终止，输出最终报告
-elif (本轮无任何修复):
-    → 收敛，终止，输出最终报告
-else:
-    → iteration++
-    → 返回阶段 1（sub-agent 在下一轮自行重新运行 git diff 获取 updated diff）
-```
-
----
-
-## 最终报告格式
-
-```markdown
-## Code Review 最终报告
-
-### 迭代统计
-- 总迭代轮次: N / max_iterations
-- 已修复 issue 数: X
-- 跳过 issue 数: Y（含原因）
-- 终止原因: 收敛 | 达到最大轮次
-
-### 已修复问题
-| # | 文件:行 | Severity | Category | 描述 | 置信度 |
-|---|---------|----------|----------|------|--------|
-| 1 | ...     | Critical | Bug      | ...  | 0.92   |
-
-### 未修复 / 跳过问题（附原因）
-| # | 文件:行 | Severity | 原因 |
-|---|---------|----------|------|
-| 1 | ...     | Medium   | 低于 severity 阈值 |
-| 2 | ...     | High     | Blocked: High Impact |
-
-### 遗留风险
-（仅列真实的、未解决的风险，无则写"无"）
-
-### 合并建议
-- 🟢 可安全合并 / 🔴 存在未解决问题
-- 原因: ...
-```
-
----
-
-## 重要约束（禁止事项）
-
-- **禁止**修改本次 diff 范围之外的文件（除非该文件被我们的改动直接破坏）
-- **禁止**以"代码风格"/"命名规范"/"更优雅"为由修改代码
-- **禁止**添加未被要求的 refactor、重命名、类型注解
-- **禁止**修改现有变量名（即使命名不好，不在此次范畴）
-- **禁止**为了修复 issue 而引入新的第三方依赖
-- **禁止** AI 署名（不添加 Co-authored-by 等署名到 commit）
-
-## 参考资料
-
-- `references/review-checklist.md` — 各维度详细检查项，reviewer prompt 中引用
-- `references/severity-guide.md` — Severity 分级标准、决策树与 Confidence 评估指南
+- 只处理由本次改动引入或直接暴露的问题；允许读取必要上下文，但不顺手清理旧问题。
+- 不因风格、个人偏好或推测性优化修改代码。
+- 不新增无关依赖、抽象、重命名或类型注解。
+- 不添加 AI 署名，不 commit、push、建 PR，除非用户另行明确要求。
+- 不把 agent 详细输出、diff 或日志重新注入主开发 session。

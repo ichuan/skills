@@ -98,26 +98,26 @@ cp -r skills/skills/multi-agent-review ./.claude/skills/
 
 ### iterative-code-review
 
-多 Agent 并发 code review + 自动修复，循环迭代直到收敛。
+隔离 sub-agent 完成 code review、可选自动修复与独立验证，主开发 session 只接收压缩结果。
 
 **适用场景：**
 - 完成 feature 或 fix 后的自动化质量门禁
 - 合并前发现 bug、安全问题和可靠性隐患
-- 自愈循环：review → 修复 → 再 review，直到无问题为止
+- 一句话触发 review-only 或 review-and-fix，并在修复后复验
 
 **功能特性：**
-- 🤖 **5 个并行 sub-agent**：逻辑正确性、安全性、性能、可靠性、代码质量，各自在独立上下文中 review
-- 🔁 **迭代循环**：修复后自动触发下一轮 review，收敛或达到 `max_iterations` 后停止
-- 🧹 **主 session 上下文隔离**：sub-agent 自行 fetch `git diff`，主 session 不被 diff 内容污染
-- 🎯 **噪音过滤**：仅 Critical / High + Confidence ≥ 0.70 的问题才触发自动修复
-- 💣 **影响范围保护**：高影响修复（公开 API 变更）需要更高置信度才执行
-- 📋 **结构化最终报告**：已修复/跳过问题表、遗留风险、合并建议
+- 🤖 **动态并发 sub-agent**：覆盖需求完整性、逻辑、边界、安全、质量、测试和实际运行结果
+- 🔁 **验证驱动的迭代**：修复后重新冻结完整 diff，默认最多 3 轮
+- 🧹 **薄主 session**：diff、详细 findings、修复过程和测试日志通过 Git 内部 artifact 交接
+- 🎯 **完整范围**：同时覆盖 branch commits、staged、unstaged 与 untracked 文件
+- 💣 **影响范围保护**：High impact 修复不自动执行；确认只用于后续显式实现任务
+- 📋 **证据化报告**：记录验证命令、exit code、未验证需求、遗留风险与有条件的合并建议
 
 **使用示例：**
 ```
 "使用 iterative-code-review skill 做 code review"
+"使用 iterative-code-review 做 review fix 迭代"
 "review and fix my changes"
-"做 code review，max_iterations=5"
 ```
 
 **详情：** 见 [skills/iterative-code-review](./skills/iterative-code-review)
