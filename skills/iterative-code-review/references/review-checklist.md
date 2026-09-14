@@ -52,3 +52,6 @@
 - 优先运行相关测试，再按风险运行 lint、typecheck、build、完整测试或本地 smoke。
 - 记录 command、exit code、状态、关键证据和跳过原因。
 - 禁止把“未运行”“全部跳过”或旧 CI 状态写成 green。
+- verifier 与 fixer 使用同一 `verification_policy`；允许正常可再生的 build/cache 输出，但禁止源码和用户文件变化。
+- runner 只验证 artifact 结构、范围和一致性，不证明真实 sub-agent 已执行。
+- 需求无可靠来源或必需检查被跳过时，不能写成 `fully verified` 或 `merge-ready`；报告必须保留限制。

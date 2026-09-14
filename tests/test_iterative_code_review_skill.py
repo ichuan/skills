@@ -89,19 +89,8 @@ class IterativeCodeReviewSkillTests(unittest.TestCase):
                 other_file.chmod(0o664)
 
                 run_root = artifact_root / "private-run"
-                existing_artifact_dir = run_root / "iteration-1"
-                for directory in (
-                    run_root,
-                    existing_artifact_dir,
-                    existing_artifact_dir / "prompts",
-                    existing_artifact_dir / "results",
-                    existing_artifact_dir / "logs",
-                ):
-                    directory.mkdir()
-                    directory.chmod(0o775)
-                existing_approval = existing_artifact_dir / "approved-high-impact.json"
-                existing_approval.write_text('["stale"]\n', encoding="utf-8")
-                existing_approval.chmod(0o664)
+                run_root.mkdir()
+                run_root.chmod(0o775)
 
                 repo_mode = repo.stat().st_mode & 0o777
                 git_mode = (repo / ".git").stat().st_mode & 0o777
@@ -118,21 +107,22 @@ class IterativeCodeReviewSkillTests(unittest.TestCase):
                     for iteration in (1, 2)
                 ]
 
-                self.assertEqual(run_root.stat().st_mode & 0o777, 0o700)
-                self.assertEqual(artifact_root.stat().st_mode & 0o777, 0o700)
-                for result in results:
-                    artifact_dir = Path(result["artifact_dir"])
-                    for directory in (path for path in artifact_dir.rglob("*") if path.is_dir()):
-                        self.assertEqual(directory.stat().st_mode & 0o777, 0o700, directory)
-                    self.assertEqual(artifact_dir.stat().st_mode & 0o777, 0o700)
-                    for artifact_file in (path for path in artifact_dir.rglob("*") if path.is_file()):
-                        self.assertEqual(artifact_file.stat().st_mode & 0o777, 0o600, artifact_file)
+                if os.name == "posix":
+                    self.assertEqual(run_root.stat().st_mode & 0o777, 0o700)
+                    self.assertEqual(artifact_root.stat().st_mode & 0o777, 0o700)
+                    for result in results:
+                        artifact_dir = Path(result["artifact_dir"])
+                        for directory in (path for path in artifact_dir.rglob("*") if path.is_dir()):
+                            self.assertEqual(directory.stat().st_mode & 0o777, 0o700, directory)
+                        self.assertEqual(artifact_dir.stat().st_mode & 0o777, 0o700)
+                        for artifact_file in (path for path in artifact_dir.rglob("*") if path.is_file()):
+                            self.assertEqual(artifact_file.stat().st_mode & 0o777, 0o600, artifact_file)
 
-                self.assertEqual(source.stat().st_mode & 0o777, 0o664)
-                self.assertEqual(repo.stat().st_mode & 0o777, repo_mode)
-                self.assertEqual((repo / ".git").stat().st_mode & 0o777, git_mode)
-                self.assertEqual(other_run.stat().st_mode & 0o777, 0o775)
-                self.assertEqual(other_file.stat().st_mode & 0o777, 0o664)
+                    self.assertEqual(source.stat().st_mode & 0o777, 0o664)
+                    self.assertEqual(repo.stat().st_mode & 0o777, repo_mode)
+                    self.assertEqual((repo / ".git").stat().st_mode & 0o777, git_mode)
+                    self.assertEqual(other_run.stat().st_mode & 0o777, 0o775)
+                    self.assertEqual(other_file.stat().st_mode & 0o777, 0o664)
         finally:
             os.umask(previous_umask)
 
@@ -155,10 +145,12 @@ class IterativeCodeReviewSkillTests(unittest.TestCase):
                     target = Path(tmp) / "outside"
                     target.mkdir()
                     target.chmod(0o777)
+                    original_mode = target.stat().st_mode & 0o777
                     root.symlink_to(target, target_is_directory=True)
                 else:
                     root.write_text("not a directory\n", encoding="utf-8")
                     root.chmod(0o666)
+                    original_mode = root.stat().st_mode & 0o777
 
                 git_mode = (repo / ".git").stat().st_mode & 0o777
                 with self.assertRaises(ValueError):
@@ -172,9 +164,9 @@ class IterativeCodeReviewSkillTests(unittest.TestCase):
                     )
                 self.assertEqual((repo / ".git").stat().st_mode & 0o777, git_mode)
                 if root_kind == "symlink":
-                    self.assertEqual(target.stat().st_mode & 0o777, 0o777)
+                    self.assertEqual(target.stat().st_mode & 0o777, original_mode)
                 else:
-                    self.assertEqual(root.stat().st_mode & 0o777, 0o666)
+                    self.assertEqual(root.stat().st_mode & 0o777, original_mode)
 
     def test_approve_high_impact_tightens_existing_approval_artifact(self) -> None:
         module = load_prepare_review_module()
@@ -203,7 +195,8 @@ class IterativeCodeReviewSkillTests(unittest.TestCase):
 
                 module.approve_high_impact(artifact_dir, ["F-1"])
 
-                self.assertEqual(approval.stat().st_mode & 0o777, 0o600)
+                if os.name == "posix":
+                    self.assertEqual(approval.stat().st_mode & 0o777, 0o600)
         finally:
             os.umask(previous_umask)
 
@@ -1753,6 +1746,257 @@ class IterativeCodeReviewSkillTests(unittest.TestCase):
         self.assertIn("新的 iteration", skill)
         self.assertIn("--verification-policy approved", skill)
         self.assertIn("--approved-command", skill)
+
+
+def write_json(path: Path, value: object) -> None:
+    path.write_text(json.dumps(value), encoding="utf-8")
+
+
+def requirement_item(status: str = "verified") -> dict[str, str]:
+    return {
+        "source": "task-contract.md",
+        "requirement": "preserve fixture behavior",
+        "implementation_evidence": "README.md:1",
+        "test_evidence": "fixture check",
+        "status": status,
+    }
+
+
+def finding_item(**overrides: object) -> dict[str, object]:
+    finding = {
+        "id": "risk-1", "severity": "High", "confidence": "High", "impact": "Low",
+        "category": "correctness", "location": "README.md:1", "change_causality": "changed value",
+        "trigger_or_scenario": "read the value", "evidence": "wrong value", "recommended_fix": "restore value",
+    }
+    finding.update(overrides)
+    return finding
+
+
+class ReviewFinalContractTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.module = load_prepare_review_module()
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.repo = Path(self.tmp.name)
+        git(self.repo, "init")
+        git(self.repo, "config", "user.email", "test@example.com")
+        git(self.repo, "config", "user.name", "Test")
+        (self.repo / "README.md").write_text("fixture\n", encoding="utf-8")
+        (self.repo / ".gitignore").write_text("build/\n", encoding="utf-8")
+        git(self.repo, "add", ".")
+        git(self.repo, "commit", "-m", "fixture")
+
+    def prepare(self, **overrides: object) -> Path:
+        args = dict(repo=self.repo, run_id="final-run", iteration=1, base="HEAD",
+                    mode="review-and-fix", task_contract="preserve fixture behavior")
+        args.update(overrides)
+        result = self.module.prepare_review(**args)
+        return Path(result["artifact_dir"])
+
+    def complete(self, directory: Path, findings: list[dict] | None = None) -> dict:
+        findings = findings or []
+        write_json(directory / "results" / "requirements-correctness.json", {
+            "role": "requirements-correctness", "findings": [],
+            "requirements_status": "verified", "requirements_matrix": [requirement_item()],
+        })
+        write_json(directory / "results" / "risk.json", {"role": "risk", "findings": findings})
+        write_json(directory / "results" / "quality-tests.json", {
+            "role": "quality-tests", "findings": [], "behavior_test_matrix": [],
+        })
+        summary = {
+            "requirements_status": "verified", "requirements_matrix": [requirement_item()],
+            "behavior_test_matrix": [], "blockers": [f for f in findings if f["severity"] in ("Critical", "High")],
+            "warnings": [f for f in findings if f["severity"] in ("Medium", "Low")],
+            "fix_candidates": [f for f in findings if f["severity"] in ("Critical", "High")],
+            "high_impact_confirmation_required": [], "dismissed_findings": [],
+        }
+        write_json(directory / "summary.json", summary)
+        (directory / "logs" / "check.log").write_text("fixture passed\n", encoding="utf-8")
+        write_json(directory / "verification.json", {
+            "overall": "green", "commands": [{"command": "fixture-check", "exit_code": 0,
+                "status": "passed", "required": True, "evidence": "fixture passed", "log_path": "logs/check.log"}],
+            "skipped": [],
+        })
+        return summary
+
+    def test_requirements_status_must_match_matrix_aggregate(self) -> None:
+        directory = self.prepare()
+        summary = self.complete(directory)
+        cases = [([], "unverifiable"), (["verified"], "verified"), (["failed", "unverifiable"], "failed"),
+                 (["verified", "unverifiable"], "partial"), (["unverifiable", "unverifiable"], "unverifiable"),
+                 (["partial"], "partial")]
+        for statuses, expected in cases:
+            for actual in ("verified", "partial", "failed", "unverifiable"):
+                with self.subTest(statuses=statuses, actual=actual):
+                    summary.update(requirements_matrix=[requirement_item(s) for s in statuses], requirements_status=actual)
+                    write_json(directory / "summary.json", summary)
+                    if actual == expected:
+                        self.assertTrue(self.module.validate_artifacts(directory, "synthesis")["valid"])
+                    else:
+                        with self.assertRaisesRegex(ValueError, "requirements_status"):
+                            self.module.validate_artifacts(directory, "synthesis")
+
+    def test_prepare_rejects_existing_iteration_without_changing_artifacts(self) -> None:
+        directory = self.prepare()
+        self.complete(directory)
+        other = self.prepare(run_id="other-run")
+        old = {p: p.read_bytes() for root in (directory, other) for p in root.rglob("*") if p.is_file()}
+        with self.assertRaisesRegex(ValueError, "already exists"):
+            self.prepare(task_contract="replacement")
+        self.assertEqual({p: p.read_bytes() for p in old}, old)
+        second = self.prepare(iteration=2)
+        self.assertTrue((second / "scope.json").is_file())
+
+    def test_fixer_execution_results_obey_no_exec_and_exact_approved_commands(self) -> None:
+        directory = self.prepare(verification_policy="no-exec")
+        self.complete(directory, [finding_item()])
+        fixes = {"fixed": [{"id": "risk-1", "files": ["README.md"], "evidence": "static fix"}],
+                 "blocked": [], "commands": [], "skipped": []}
+        write_json(directory / "fixes.json", fixes)
+        self.assertTrue(self.module.validate_artifacts(directory, "fixes")["valid"])
+        command = {"command": "fixture-check", "exit_code": 0, "status": "passed", "required": True,
+                   "evidence": "passed", "log_path": "logs/check.log"}
+        fixes["commands"] = [command]
+        write_json(directory / "fixes.json", fixes)
+        with self.assertRaisesRegex(ValueError, "no-exec"):
+            self.module.validate_artifacts(directory, "fixes")
+        scope = json.loads((directory / "scope.json").read_text(encoding="utf-8"))
+        scope.update(verification_policy="approved", approved_commands=["fixture-check"])
+        write_json(directory / "scope.json", scope)
+        self.assertTrue(self.module.validate_artifacts(directory, "fixes")["valid"])
+        command["command"] = "fixture-check && upload"
+        write_json(directory / "fixes.json", fixes)
+        with self.assertRaisesRegex(ValueError, "allowlist"):
+            self.module.validate_artifacts(directory, "fixes")
+
+    def test_first_clean_iteration_converges_and_writes_short_status(self) -> None:
+        directory = self.prepare()
+        self.complete(directory, [finding_item(severity="Medium")])
+        result = self.module.validate_artifacts(directory, "final")
+        self.assertEqual(result["status"], "converged")
+        self.assertEqual(result["max_iterations"], 8)
+        self.assertEqual(result["counts"]["warnings"], 1)
+        self.assertTrue(result["merge_ready"])
+        self.assertEqual(json.loads((directory.parent / "final-status.json").read_text(encoding="utf-8")), result)
+        self.assertTrue(all(Path(p).is_file() for p in result["checked"]))
+
+    def test_final_rejects_missing_artifacts_changed_scope_and_missing_logs(self) -> None:
+        directory = self.prepare()
+        self.complete(directory)
+        for relative in ("results/risk.json", "summary.json", "verification.json", "logs/check.log"):
+            path = directory / relative
+            saved = path.read_bytes()
+            path.unlink()
+            with self.subTest(relative=relative), self.assertRaises(ValueError):
+                self.module.validate_artifacts(directory, "final")
+            path.write_bytes(saved)
+        (self.repo / "README.md").write_text("changed\n", encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "worktree changed"):
+            self.module.validate_artifacts(directory, "final")
+
+    def test_final_accepts_regenerable_ignored_build_output(self) -> None:
+        directory = self.prepare()
+        self.complete(directory)
+        (self.repo / "build").mkdir()
+        (self.repo / "build" / "output.txt").write_text("generated", encoding="utf-8")
+        self.assertEqual(self.module.validate_artifacts(directory, "final")["status"], "converged")
+
+    def test_final_requires_dismissal_reason_for_omitted_reviewer_finding(self) -> None:
+        directory = self.prepare()
+        summary = self.complete(directory, [finding_item()])
+        summary.update(blockers=[], fix_candidates=[])
+        write_json(directory / "summary.json", summary)
+        with self.assertRaisesRegex(ValueError, "finding"):
+            self.module.validate_artifacts(directory, "final")
+        summary["dismissed_findings"] = [{"id": "risk-1", "reason": "caller already validates the value"}]
+        write_json(directory / "summary.json", summary)
+        self.assertEqual(self.module.validate_artifacts(directory, "final")["status"], "converged")
+
+    def test_final_allows_explained_reclassification_but_not_silent_downgrade(self) -> None:
+        directory = self.prepare()
+        summary = self.complete(directory, [finding_item()])
+        summary.update(blockers=[], fix_candidates=[], warnings=[finding_item(severity="Medium")])
+        write_json(directory / "summary.json", summary)
+        with self.assertRaisesRegex(ValueError, "rationale"):
+            self.module.validate_artifacts(directory, "final")
+        summary["warnings"][0]["rationale"] = "impact only concerns optional diagnostics"
+        write_json(directory / "summary.json", summary)
+        self.assertEqual(self.module.validate_artifacts(directory, "final")["status"], "converged")
+
+    def test_final_returns_continue_even_when_required_check_failed(self) -> None:
+        directory = self.prepare()
+        self.complete(directory, [finding_item()])
+        path = directory / "verification.json"
+        verification = json.loads(path.read_text(encoding="utf-8"))
+        verification["overall"] = "failed"
+        verification["commands"][0].update(status="failed", exit_code=1)
+        write_json(path, verification)
+        self.assertEqual(self.module.validate_artifacts(directory, "final")["status"], "continue")
+
+    def test_final_blocks_high_impact_and_repeated_blockers(self) -> None:
+        first = self.prepare()
+        self.complete(first, [finding_item(impact="High")])
+        result = self.module.validate_artifacts(first, "final")
+        self.assertEqual((result["status"], result["stop_reason"]), ("blocked", "high_impact_requires_separate_implementation"))
+        self.complete(first, [finding_item()])
+        second = self.prepare(iteration=2)
+        self.complete(second, [finding_item(id="risk-1")])
+        result = self.module.validate_artifacts(second, "final")
+        self.assertEqual((result["status"], result["stop_reason"]), ("blocked", "repeated_blockers"))
+        with self.assertRaisesRegex(ValueError, "latest iteration"):
+            self.module.validate_artifacts(first, "final")
+
+    def test_review_only_reports_complete_and_unverifiable_requirements_limit_merge(self) -> None:
+        directory = self.prepare(mode="review-only")
+        summary = self.complete(directory, [finding_item()])
+        result = self.module.validate_artifacts(directory, "final")
+        self.assertEqual(result["status"], "review_complete")
+        self.assertFalse(result["merge_ready"])
+        summary = self.complete(directory)
+        summary.update(requirements_status="unverifiable", requirements_matrix=[])
+        write_json(directory / "summary.json", summary)
+        reviewer_path = directory / "results" / "requirements-correctness.json"
+        reviewer = json.loads(reviewer_path.read_text(encoding="utf-8"))
+        reviewer.update(requirements_status="unverifiable", requirements_matrix=[])
+        write_json(reviewer_path, reviewer)
+        result = self.module.validate_artifacts(directory, "final")
+        self.assertEqual(result["status"], "review_complete")
+        self.assertFalse(result["merge_ready"])
+        self.assertIn("requirements_unverifiable", result["limitations"])
+
+    def test_iteration_limit_and_cross_iteration_contract_are_preserved(self) -> None:
+        first = self.prepare(max_iterations=1)
+        self.complete(first, [finding_item()])
+        result = self.module.validate_artifacts(first, "final")
+        self.assertEqual((result["status"], result["stop_reason"]), ("blocked", "max_iterations_reached"))
+        with self.assertRaises(ValueError):
+            self.prepare(iteration=2, max_iterations=1)
+        self.prepare(run_id="stable")
+        for changes in ({"task_contract": "other"}, {"mode": "review-only"}, {"max_iterations": 9}):
+            with self.subTest(changes=changes), self.assertRaises(ValueError):
+                self.prepare(run_id="stable", iteration=2, **changes)
+        self.assertTrue(self.prepare(run_id="stable", iteration=2, verification_policy="no-exec").is_dir())
+
+    def test_final_cli_uses_saved_iteration_limit(self) -> None:
+        directory = self.prepare(max_iterations=1)
+        self.complete(directory, [finding_item()])
+        result = subprocess.run([sys.executable, str(SCRIPT_PATH), "--validate-artifact-dir", str(directory),
+                                 "--validate-phase", "final"], capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(result.stdout)["stop_reason"], "max_iterations_reached")
+
+    def test_failed_requirements_cannot_converge_without_a_blocker(self) -> None:
+        directory = self.prepare()
+        summary = self.complete(directory)
+        summary.update(requirements_status="failed", requirements_matrix=[requirement_item("failed")])
+        write_json(directory / "summary.json", summary)
+        write_json(directory / "results" / "requirements-correctness.json", {
+            "role": "requirements-correctness", "findings": [],
+            "requirements_status": "failed", "requirements_matrix": [requirement_item("failed")],
+        })
+        result = self.module.validate_artifacts(directory, "final")
+        self.assertEqual(result["status"], "blocked")
+        self.assertFalse(result["merge_ready"])
 
 
 if __name__ == "__main__":

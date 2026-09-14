@@ -105,10 +105,10 @@ Isolated sub-agents perform code review, optional fixes, and independent verific
 
 **Features:**
 - 🤖 **Dynamic sub-agent concurrency**: Covers requirements, correctness, edge cases, security, quality, tests, and runtime evidence
-- 🔁 **Verification-driven loop**: Re-freezes the complete diff after fixes, with 8 iterations by default
+- 🔁 **Verification-driven loop**: Re-freezes the complete diff after fixes, with an 8-iteration upper bound
 - 🧹 **Thin main session**: Diff, detailed findings, fix work, and logs move through Git-internal artifacts
 - 🎯 **Complete scope**: Includes branch commits, staged, unstaged, and untracked files
-- 💣 **Blast-radius guard**: High-impact fixes are never auto-applied; confirmation is recorded for explicit follow-up
+- 💣 **Blast-radius guard**: High-impact fixes are never auto-applied; the report points to a separate explicit implementation task
 - 📋 **Evidence-backed report**: Records commands, exit codes, unverifiable requirements, residual risk, and conditional merge advice
 
 **Usage:**

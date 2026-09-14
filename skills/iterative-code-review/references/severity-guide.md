@@ -31,12 +31,13 @@ Severity 必须同时考虑影响、可达性、发生可能性和受影响范�
 | Medium | 同一模块多处联动，但不改变公开接口、数据格式或迁移 |
 | High | 公开 API、数据模型、迁移、跨模块行为、部署或用户可见语义发生改变 |
 
-High impact 不代表 finding 不可信；它代表自动修复权限不足，必须请求用户确认。
+High impact 不代表 finding 不可信；它代表自动修复权限不足，直接作为 blocker 留在本轮结果中。
 
 ## 处理规则
 
 - 报告：有证据的 Critical/High，以及确实增加本次改动风险的 Medium。
 - 自动修复：仅 `Severity ∈ {Critical, High}`、`Confidence = High`、`Impact ∈ {Low, Medium}`。
-- High impact：保持 blocker，等待用户确认。
+- High impact：直接保持 blocker；本轮不请求确认，也不交给 fixer。报告建议另起显式实现任务。
 - Medium：默认只报告，不在自动迭代中顺手重构。
-- 合并建议：只有无 blocker 且必需验证 green 时才可给出；需求无法验证或检查跳过时必须限定结论。
+- verifier 与 fixer 共享同一 `verification_policy`。允许正常可再生的 build/cache 输出，禁止源码或用户文件变化；runner 校验 artifact 不等于证明真实 sub-agent 执行。
+- 合并建议：一轮无未解决 blocker 且必需验证 green 即可给出；不要求跑满两轮。需求无法验证或检查跳过时必须限定结论。
