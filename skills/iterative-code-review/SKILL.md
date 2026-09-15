@@ -75,9 +75,9 @@ reviewer、synthesizer、fixer、verifier 通过文件传递详细信息，最�
 
 | 角色 | 输入 | 输出与职责 |
 |---|---|---|
-| 需求/风险/质量 reviewers（三个平级角色） | 冻结范围、对应 reviewer prompt、短 `task_contract` | 各自的 JSON finding；分别覆盖需求与正确性、风险与性能、质量与测试/命令证据。三者可并行。 |
+| 需求/风险/质量 reviewers（三个平级角色） | 冻结范围、对应 reviewer prompt、短 `task_contract` | 各自的 JSON finding；分别覆盖需求与正确性、风险与性能、质量与测试/命令证据。风险 reviewer 同时记录本次安全覆盖范围。三者可并行。 |
 | 汇总 synthesizer | 三份 reviewer JSON、scope artifact | `summary.json`：按根因去重，标注 severity/confidence/impact 和修复候选。 |
-| 验证 verifier | scope、`summary.json`、`verify_prompt`、`verification_policy` | `verification.json`：实际命令、exit code、状态、证据和跳过原因；不改源码或用户文件。 |
+| 验证 verifier | scope、`summary.json`、`verify_prompt`、`verification_policy` | `verification.json`：实际命令、exit code、状态、证据和跳过原因；独立复核保留的安全 finding，不改源码或用户文件。 |
 | 修复 fixer（仅 review-and-fix） | scope、允许的修复候选、`fix_prompt`、同一 `verification_policy` | `fixes.json` 和最小代码修复；只处理允许的候选，不改授权文件。 |
 | 报告 reporter | 全部阶段 artifact 路径、最终 gate 状态 | 面向用户的短报告和完整报告 artifact。 |
 
@@ -129,6 +129,16 @@ skill 不授予或提升宿主权限，也不会把 full access 伪装成沙箱�
 2. 安全性、可靠性、性能；
 3. 代码质量、测试覆盖、实际运行命令识别。
 
+风险 reviewer 先梳理本次 diff 触及的入口、调用者权限、信任边界、受保护资源和现有控制，再按
+[review-checklist.md](references/review-checklist.md) 选择相关攻击路径。顶层输出 `security_coverage` 数组，
+每项包含 `surface`、`boundary`、`status`（`covered|not_applicable|needs_validation|out_of_scope`）和 `evidence`；
+没有相关安全面时可为空。有安全 finding 时，其边界必须有 `covered` 或 `needs_validation` 记录；
+`covered` 表示已检查，不表示不存在漏洞。覆盖记录只描述本次范围，不扩展为全仓库安全审计。
+
+安全 finding 使用 `category=security:<class>`（runner 也识别 `security`），并包含 `security_context`：
+`entrypoint`、`principal`、`boundary`、`asset`、`control`、`impact` 均为非空字符串。
+证据必须说明实际权限下如何跨越边界并造成未授权结果；缺少最佳实践或仅有 prompt injection 文本不构成漏洞。
+
 每个 reviewer 把详细 JSON 写入 artifact，最终只返回一行完成回执。
 全部完成后，不读取 JSON 内容，改用 runner 校验结构：
 
@@ -150,6 +160,7 @@ python <skill-dir>/scripts/prepare_review.py \
 - 按根因和证据去重；
 - 区分 `severity`、`confidence`、`impact`，禁止平均 confidence 或用 impact 修改 confidence；
 - 保留有证据的 Critical/High 和确实增加本次风险的 Medium，过滤纯 nit；
+- 保留安全 finding 的 `category` 和 `security_context`，让 verifier 能独立检验其权限与因果链；
 - 写入 `summary.json`，只返回不超过 10 行的 blocker 摘要。
 
 finding 可以位于调用方、测试或配置中，但必须说明它如何由本次改动引入或直接暴露。
@@ -162,6 +173,14 @@ finding 可以位于调用方、测试或配置中，但必须说明它如何由
 - 相关测试；
 - lint、typecheck、build；
 - 完整测试或安全的本地 smoke test。
+
+verifier 必须独立于发现者，对 `summary.json` 中每个保留的安全 finding **尝试推翻**：检查入口是否可达、
+调用者是否本已有权、其他层是否已有有效控制，以及所述结果能否成立。不能只复述 reviewer 的判断。
+在 `verification.json.security_checks` 数组中为每个保留的安全 finding 恰好记录一项 `finding_id`、`status`（`confirmed|needs_validation|rejected`）、
+`method`（`source|local`）、`evidence` 和 `test_or_gap`；具体判断见 [severity-guide.md](references/severity-guide.md)。
+
+完整且无关键假设的源码证据可得出 `confirmed`，不强制动态 PoC。`method=local` 必须通过 `commands[].finding_ids`
+关联真实执行的命令和日志；跳过项可通过 `skipped[].finding_ids` 关联。不能验证时保留证据缺口，不能把未运行写成已复现。
 
 verifier 与 fixer 共享同一 `verification_policy`；实际执行受它约束：
 
@@ -195,6 +214,7 @@ python <skill-dir>/scripts/prepare_review.py \
 `review-and-fix` 中，启动 fresh-context fixer，只传 `fix_prompt` 路径：
 
 - 自动修复仅限 `Severity ∈ {Critical, High}`、`Confidence = High`、`Impact ∈ {Low, Medium}` 的 finding；
+- 安全 finding 还必须由独立 verifier 标记 `confirmed`；`needs_validation` 不得自动修复，`rejected` 不进入有效 blocker 或修复候选；
 - High impact 直接作为 blocker 保留，不在本轮请求无作用的确认；报告建议另起显式实现任务。impact 与 confidence 不做数学换算；
 
 
@@ -225,6 +245,8 @@ python <skill-dir>/scripts/prepare_review.py \
 AND 必需验证为 green
 ```
 
+安全 finding 的 `needs_validation` 阻止无条件合并；`security_coverage` 中的 `needs_validation` 或 `out_of_scope`
+也会留下 `security_coverage_incomplete` 限制，不能给出无条件合并建议。报告保留具体证据缺口，`rejected` 只保留为复核记录。
 需求“无法验证”不是自动失败，但最终结论必须带限制。出现以下任一条件提前停止并报告：
 
 - 达到 `max_iterations`；

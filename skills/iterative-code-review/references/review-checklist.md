@@ -26,8 +26,13 @@
 
 ## 安全性、可靠性与性能
 
-- 检查信任边界上的输入验证、输出编码、认证、授权和敏感数据处理。
-- 检查 SQL/命令/模板注入、路径穿越、XSS、CSRF、SSRF、不安全反序列化和 secret 泄漏。
+- 先围绕本次 diff 建立最小威胁模型：外部输入从哪里进入、调用者实际拥有什么权限、跨越哪条信任边界、能接触什么资源、已有控制在哪一层。读取相关调用方和控制实现，不把未检查等同于无控制。
+- 安全 finding 使用 `category=security:<class>`，并填写 `security_context` 的六个非空字符串：`entrypoint`（入口）、`principal`（调用者及权限）、`boundary`（信任边界）、`asset`（受保护资源）、`control`（实际控制或其缺口）、`impact`（未授权结果）。后者不同于顶层表示修复范围的 `impact`。
+- 风险 reviewer 的顶层 `security_coverage` 按本次触及的安全面记录 `surface`、`boundary`、`status` 和 `evidence`。`covered` 表示已检查并给出依据，不表示没有漏洞；`not_applicable` 表示该面不适用，`needs_validation` 表示证据不足，`out_of_scope` 表示超出本次范围；后三者说明原因。有安全 finding 时，其边界须有 `covered` 或 `needs_validation` 记录。没有相关安全面时可为空，不建立全仓库覆盖清单。
+- 按 diff 选择相关检查，不机械遍历漏洞名单。鉴权改动要检查替代入口、批量调用、异步任务和重试是否保留同一身份与授权约束；数据修改检查对象归属、租户隔离和状态转换中的权限。
+- 输入到危险操作的路径要追到实际消费点：核对解码、规范化、重定向、路径解析后是否仍受约束，再判断 SQL/命令/模板注入、路径穿越、XSS、CSRF、SSRF、不安全反序列化或 secret 泄漏。说明攻击者能控制的值及实际后果。
+- 涉及 agent 或工具执行时，检查审批是否绑定实际工具、动作、参数、目标和执行身份，变更或重放是否绕过约束。仅存在 prompt injection 文本不是漏洞；须证明低信任输入导致越权动作、数据泄漏或其他边界突破。
+- 根据实际权限评估预期威胁：缺少某项最佳实践、允许已授权的管理员执行操作、或单纯未见防护代码，都不能代替可达攻击路径与未授权结果。
 - 检查异常吞噬、资源泄漏、事务回滚、超时，以及仅在安全且幂等时使用的重试。
 - 检查依赖和配置是否引入已知高风险漏洞或不安全默认值。
 - 仅在存在现实输入规模或执行路径证据时报告 N+1、阻塞 I/O、无界内存或复杂度退化。
@@ -48,6 +53,9 @@
 
 ## 实际运行结果
 
+- 独立 verifier 对汇总中保留的每个安全 finding 尝试推翻：寻找已有控制、不可达条件、调用者原有权限和不成立的影响。验证者独立于发现者，沿用现有 verifier 角色。
+- 在 `security_checks` 中记录 `finding_id`、`status`（`confirmed|needs_validation|rejected`）、`method`（`source|local`）、`evidence`、`test_or_gap`。源码可完整证明因果链时无需动态 PoC；有关键假设时写清缺口。
+- 本地安全验证遵守现有 `verification_policy`，保留真实命令及日志，并以 `commands[].finding_ids` 关联 finding；跳过项可用 `skipped[].finding_ids` 关联。不得为复现扩大权限、访问真实凭证或未经授权的外部系统。
 - 从 manifest、CI 配置和开发文档识别项目已有命令，不凭空发明命令。
 - 优先运行相关测试，再按风险运行 lint、typecheck、build、完整测试或本地 smoke。
 - 记录 command、exit code、状态、关键证据和跳过原因。

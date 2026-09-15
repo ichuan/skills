@@ -390,11 +390,16 @@ class IterativeCodeReviewSkillTests(unittest.TestCase):
             self.assertIn("不可信数据", prompt_text)
             self.assertIn("requirements_matrix", prompt_text)
             self.assertIn("behavior_test_matrix", prompt_text)
+            risk_prompt = Path(result["reviewer_prompts"][1]).read_text(encoding="utf-8")
+            self.assertIn("entrypoint", risk_prompt)
+            self.assertIn("security_coverage", risk_prompt)
             for prompt_key in ("synthesis_prompt", "fix_prompt", "verify_prompt", "report_prompt"):
                 downstream_prompt = Path(result[prompt_key]).read_text(encoding="utf-8")
                 self.assertIn("不可信数据", downstream_prompt)
             verify_prompt = Path(result["verify_prompt"]).read_text(encoding="utf-8")
             self.assertIn("commands 和 skipped 每项必须包含布尔 required(true|false)", verify_prompt)
+            self.assertIn("security_checks", verify_prompt)
+            self.assertIn("尝试推翻", verify_prompt)
 
     def test_verification_policy_defaults_to_trusted_full_access_and_keeps_no_exec_fallback(self) -> None:
         module = load_prepare_review_module()
@@ -1383,7 +1388,7 @@ class IterativeCodeReviewSkillTests(unittest.TestCase):
                 encoding="utf-8",
             )
             (results / "risk.json").write_text(
-                json.dumps({"role": "risk", "findings": [42]}), encoding="utf-8"
+                json.dumps({"role": "risk", "findings": [42], "security_coverage": []}), encoding="utf-8"
             )
             (results / "quality-tests.json").write_text(
                 json.dumps({"role": "quality-tests", "findings": [], "behavior_test_matrix": []}),
@@ -1430,7 +1435,7 @@ class IterativeCodeReviewSkillTests(unittest.TestCase):
                     encoding="utf-8",
                 )
                 (results / "risk.json").write_text(
-                    json.dumps({"role": "risk", "findings": []}), encoding="utf-8"
+                    json.dumps({"role": "risk", "findings": [], "security_coverage": []}), encoding="utf-8"
                 )
                 (results / "quality-tests.json").write_text(
                     json.dumps(
@@ -1473,7 +1478,7 @@ class IterativeCodeReviewSkillTests(unittest.TestCase):
                     encoding="utf-8",
                 )
                 (results / "risk.json").write_text(
-                    json.dumps({"role": "risk", "findings": []}), encoding="utf-8"
+                    json.dumps({"role": "risk", "findings": [], "security_coverage": []}), encoding="utf-8"
                 )
                 (results / "quality-tests.json").write_text(
                     json.dumps(
@@ -1556,6 +1561,68 @@ class IterativeCodeReviewSkillTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     module.validate_artifacts(artifact_dir, "synthesis")
 
+    def test_reviewer_security_findings_require_context_and_coverage(self) -> None:
+        module = load_prepare_review_module()
+
+        with tempfile.TemporaryDirectory() as tmp:
+            artifact_dir = Path(tmp)
+            results = artifact_dir / "results"
+            results.mkdir()
+            (results / "requirements-correctness.json").write_text(
+                json.dumps({
+                    "role": "requirements-correctness", "findings": [],
+                    "requirements_status": "unverifiable", "requirements_matrix": [],
+                }), encoding="utf-8"
+            )
+            (results / "risk.json").write_text(
+                json.dumps({"role": "risk", "findings": [finding_item(category="security:authorization")], "security_coverage": []}),
+                encoding="utf-8",
+            )
+            (results / "quality-tests.json").write_text(
+                json.dumps({"role": "quality-tests", "findings": [], "behavior_test_matrix": []}),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(ValueError, "security"):
+                module.validate_artifacts(artifact_dir, "reviewers")
+
+            security_finding = finding_item(
+                category="security:authorization",
+                security_context={
+                    "entrypoint": "POST /records/:id",
+                    "principal": "authenticated tenant user",
+                    "boundary": "tenant ownership",
+                    "asset": "another tenant record",
+                    "control": "owner check",
+                    "impact": "cross-tenant read",
+                },
+            )
+            coverage = [{
+                "surface": "POST /records/:id",
+                "boundary": "tenant ownership",
+                "status": "covered",
+                "evidence": "risk-1 trace",
+            }]
+            (results / "risk.json").write_text(
+                json.dumps({"role": "risk", "findings": [security_finding], "security_coverage": coverage}),
+                encoding="utf-8",
+            )
+            self.assertTrue(module.validate_artifacts(artifact_dir, "reviewers")["valid"])
+            summary_finding = json.loads(json.dumps(security_finding))
+            security_finding["security_context"]["control"] = "weaker caller check"
+            (results / "risk.json").write_text(
+                json.dumps({"role": "risk", "findings": [security_finding], "security_coverage": coverage}),
+                encoding="utf-8",
+            )
+            (artifact_dir / "summary.json").write_text(
+                json.dumps({
+                    "requirements_status": "unverifiable", "requirements_matrix": [],
+                    "behavior_test_matrix": [], "blockers": [summary_finding], "warnings": [],
+                    "fix_candidates": [], "high_impact_confirmation_required": [],
+                }), encoding="utf-8",
+            )
+            with self.assertRaisesRegex(ValueError, "security_context"):
+                module.validate_artifacts(artifact_dir, "synthesis")
+
     def test_synthesis_validation_rejects_non_string_requirements_status(self) -> None:
         module = load_prepare_review_module()
 
@@ -1598,7 +1665,7 @@ class IterativeCodeReviewSkillTests(unittest.TestCase):
                 encoding="utf-8",
             )
             (results / "risk.json").write_text(
-                json.dumps({"role": "risk", "findings": []}), encoding="utf-8"
+                json.dumps({"role": "risk", "findings": [], "security_coverage": []}), encoding="utf-8"
             )
             (results / "quality-tests.json").write_text(
                 json.dumps({"role": "quality-tests", "findings": [], "behavior_test_matrix": []}),
@@ -1799,7 +1866,14 @@ class ReviewFinalContractTests(unittest.TestCase):
             "role": "requirements-correctness", "findings": [],
             "requirements_status": "verified", "requirements_matrix": [requirement_item()],
         })
-        write_json(directory / "results" / "risk.json", {"role": "risk", "findings": findings})
+        write_json(directory / "results" / "risk.json", {
+            "role": "risk", "findings": findings,
+            "security_coverage": [{
+                "surface": f["security_context"]["entrypoint"],
+                "boundary": f["security_context"]["boundary"],
+                "status": "covered", "evidence": f["evidence"],
+            } for f in findings if "security_context" in f],
+        })
         write_json(directory / "results" / "quality-tests.json", {
             "role": "quality-tests", "findings": [], "behavior_test_matrix": [],
         })
@@ -1911,6 +1985,74 @@ class ReviewFinalContractTests(unittest.TestCase):
         summary["dismissed_findings"] = [{"id": "risk-1", "reason": "caller already validates the value"}]
         write_json(directory / "summary.json", summary)
         self.assertEqual(self.module.validate_artifacts(directory, "final")["status"], "converged")
+
+    def test_final_rejects_fabricated_synthesis_finding(self) -> None:
+        directory = self.prepare()
+        summary = self.complete(directory)
+        summary["blockers"] = [finding_item(id="fabricated")]
+        summary["fix_candidates"] = []
+        write_json(directory / "summary.json", summary)
+        with self.assertRaisesRegex(ValueError, "reviewer finding|synthesis"):
+            self.module.validate_artifacts(directory, "final")
+
+    def test_final_requires_security_validation_for_security_findings(self) -> None:
+        directory = self.prepare()
+        security_finding = finding_item(
+            category="security:authorization",
+            security_context={
+                "entrypoint": "POST /records/:id",
+                "principal": "authenticated tenant user",
+                "boundary": "tenant ownership",
+                "asset": "another tenant record",
+                "control": "owner check",
+                "impact": "cross-tenant read",
+            },
+        )
+        self.complete(directory, [security_finding])
+        with self.assertRaisesRegex(ValueError, "security"):
+            self.module.validate_artifacts(directory, "final")
+        verification_path = directory / "verification.json"
+        verification = json.loads(verification_path.read_text(encoding="utf-8"))
+        verification["security_checks"] = [{
+            "finding_id": "risk-1",
+            "status": "needs_validation",
+            "method": "source",
+            "evidence": "deployment tenant mapping is not source-visible",
+            "test_or_gap": "owner must verify tenant routing",
+        }]
+        write_json(verification_path, verification)
+        result = self.module.validate_artifacts(directory, "final")
+        self.assertEqual(result["status"], "blocked")
+        self.assertEqual(result["counts"]["eligible_fixes"], 0)
+        self.assertIn("security_needs_validation", result["limitations"])
+
+        verification["security_checks"][0].update(
+            status="rejected", evidence="source tenant filter refutes claim",
+            test_or_gap="source trace covers the complete boundary",
+        )
+        write_json(verification_path, verification)
+        result = self.module.validate_artifacts(directory, "final")
+        self.assertEqual(result["status"], "converged")
+        self.assertEqual(result["counts"]["blockers"], 0)
+        self.assertEqual(result["counts"]["security_rejected"], 1)
+
+        verification["security_checks"][0].update(status="confirmed", method="local")
+        write_json(verification_path, verification)
+        with self.assertRaisesRegex(ValueError, "linked executed command"):
+            self.module.validate_artifacts(directory, "final")
+        verification["commands"][0]["finding_ids"] = ["risk-1"]
+        write_json(verification_path, verification)
+        result = self.module.validate_artifacts(directory, "final")
+        self.assertEqual(result["status"], "continue")
+        self.assertEqual(result["counts"]["security_confirmed"], 1)
+
+        fixes = {"fixed": [{"id": "risk-1", "files": ["README.md"], "evidence": "fixed"}], "blocked": []}
+        write_json(directory / "fixes.json", fixes)
+        self.assertTrue(self.module.validate_artifacts(directory, "fixes")["valid"])
+        verification["security_checks"][0]["status"] = "needs_validation"
+        write_json(verification_path, verification)
+        with self.assertRaisesRegex(ValueError, "security fix"):
+            self.module.validate_artifacts(directory, "fixes")
 
     def test_final_allows_explained_reclassification_but_not_silent_downgrade(self) -> None:
         directory = self.prepare()
