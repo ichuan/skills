@@ -139,7 +139,11 @@ skill 不授予或提升宿主权限，也不会把 full access 伪装成沙箱�
 `entrypoint`、`principal`、`boundary`、`asset`、`control`、`impact` 均为非空字符串。
 证据必须说明实际权限下如何跨越边界并造成未授权结果；缺少最佳实践或仅有 prompt injection 文本不构成漏洞。
 
-每个 reviewer 把详细 JSON 写入 artifact，最终只返回一行完成回执。
+每个 reviewer 把详细 JSON 写入 `results/<role>.attempt-N.tmp.json`，完成后使用生成 prompt 中的
+`--publish-reviewer-artifact` 命令。runner 只会把通过角色校验的尝试原子发布为 canonical JSON；retry 使用递增的 `N`，
+旧的 `.attempt-N.json`、`.rejected-N.json` 和中断的 `.tmp.json` 都保留。不要让 agent 直接截断或覆盖 canonical 文件。
+控制面在 `reviewer-status.json` 中记录每次尝试的 `pending`、`running`、`completed`、`timed_out`、`capacity_error`、
+`artifact_invalid`、`scope_violation`、`accepted` 状态，并记录 agent、model、attempt、artifact、开始/结束时间和错误。
 全部完成后，不读取 JSON 内容，改用 runner 校验结构：
 
 ```bash
@@ -152,6 +156,7 @@ python <skill-dir>/scripts/prepare_review.py \
 若指纹变化，本轮结果作废，回到阶段 1 生成新 iteration，禁止对旧 findings 应用修复。
 
 校验失败时仅重试对应 agent 一次；仍失败则停止并报告 artifact 不完整，不能把缺失结果当作无问题。
+`--validate-phase reviewers` 会汇总所有角色及尝试文件的校验结果，每个无效文件报告首个错误及字段路径；容量错误、超时、artifact_invalid 和 scope_violation 分开记录。
 
 ### 3. 隔离汇总
 
@@ -211,7 +216,13 @@ python <skill-dir>/scripts/prepare_review.py \
 
 `review-only` 跳过本阶段。
 
-`review-and-fix` 中，启动 fresh-context fixer，只传 `fix_prompt` 路径：
+`review-and-fix` 中，只有最终 gate 返回 `continue` 且没有 High-impact 候选时，才启动 fresh-context fixer，只传 `fix_prompt` 路径。当前 fixer 协议是 `patch-only`：
+
+- fixer 必须运行在独立 worktree 或临时副本中；宿主无法提供隔离时不得启动 fixer；
+- fixer 不得直接写共享工作区，只生成 iteration 内的 `fix.patch` 和 `fixes.json`；
+- runner 校验 patch 必须位于 artifact 目录内，patch header 的文件集合必须与 `fixed[].files` 完全一致；scope 改变时拒绝整个 iteration。
+
+runner 不创建操作系统沙箱，也不自动恢复共享工作区；独立 worktree 只隔离正常写入位置，不限制同权限 agent 访问其他路径。patch 文件声明校验不能证明修改内容只修复了授权 finding，控制面应用前仍须检查补丁内容。
 
 - 自动修复仅限 `Severity ∈ {Critical, High}`、`Confidence = High`、`Impact ∈ {Low, Medium}` 的 finding；
 - 安全 finding 还必须由独立 verifier 标记 `confirmed`；`needs_validation` 不得自动修复，`rejected` 不进入有效 blocker 或修复候选；
@@ -223,8 +234,7 @@ fixer 无权修改授权文件；runner 的 digest 只证明 artifact 前后字�
 - 能测试的缺陷先建立会因该缺陷失败的最小回归测试，再做最小修复；
 - 不重构无关代码，不覆盖用户改动，不提交、不推送、不创建 PR。
 
-修复后回到阶段 1，重新冻结 updated diff 并 review。主 session 不亲自编辑。
-修复 agent 完成后使用 `--validate-phase fixes` 校验 artifact；校验失败不得进入下一轮。
+修复 agent 完成后使用 `--validate-phase fixes` 校验 artifact；校验失败不得应用补丁或进入下一轮。控制面检查补丁内容、再次确认 scope 未变化，并用 `git apply --check` 确认可应用后，才应用补丁；主 session 不另行手工修代码。然后回到阶段 1，重新冻结 updated diff 并 review。
 
 当前 iteration 的 reviewers、synthesizer、verifier（以及存在的 fixer artifact）全部完成后，确认不再继续修复、启动 reporter 前运行最终 gate：
 

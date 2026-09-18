@@ -42,6 +42,7 @@ def valid_scope(repo: Path | str = "/tmp/repo", **overrides: object) -> dict[str
         "run_id": "test-run",
         "iteration": 1,
         "mode": "review-only",
+        "fixer_mode": "legacy-direct",
         "verification_policy": "sandboxed",
         "approved_commands": [],
         "base": None,
@@ -400,6 +401,329 @@ class IterativeCodeReviewSkillTests(unittest.TestCase):
             self.assertIn("commands 和 skipped 每项必须包含布尔 required(true|false)", verify_prompt)
             self.assertIn("security_checks", verify_prompt)
             self.assertIn("尝试推翻", verify_prompt)
+
+    def test_reviewer_prompts_define_exact_artifact_schema_and_publish_protocol(self) -> None:
+        module = load_prepare_review_module()
+
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            git(repo, "init")
+            git(repo, "config", "user.email", "test@example.com")
+            git(repo, "config", "user.name", "Test")
+            (repo / "README.md").write_text("fixture\n", encoding="utf-8")
+            git(repo, "add", ".")
+            git(repo, "commit", "-m", "base")
+
+            result = module.prepare_review(
+                repo=repo,
+                run_id="strict-schema-prompts",
+                iteration=1,
+                base=None,
+                mode="review-only",
+                task_contract="",
+            )
+
+            requirements_prompt = Path(result["reviewer_prompts"][0]).read_text(encoding="utf-8")
+            quality_prompt = Path(result["reviewer_prompts"][2]).read_text(encoding="utf-8")
+            for prompt in (requirements_prompt, quality_prompt):
+                self.assertIn("verified / partial / failed / unverifiable", prompt)
+                self.assertIn("attempt-<N>.tmp.json", prompt)
+                self.assertIn("--publish-reviewer-artifact", prompt)
+                self.assertIn("path:line", prompt)
+            self.assertIn("requirements_status=unverifiable", requirements_prompt)
+            self.assertIn("behavior_test_matrix", quality_prompt)
+            status_path = Path(result["reviewer_status"])
+            status = json.loads(status_path.read_text(encoding="utf-8"))
+            self.assertEqual(status["roles"]["risk"]["state"], "pending")
+            module.update_reviewer_status(
+                Path(result["artifact_dir"]),
+                "risk",
+                "running",
+                1,
+                agent="reviewer-1",
+                model="test-model",
+            )
+            module.update_reviewer_status(
+                Path(result["artifact_dir"]),
+                "risk",
+                "capacity_error",
+                1,
+                model="test-model",
+                error="at capacity",
+            )
+            status = json.loads(status_path.read_text(encoding="utf-8"))
+            self.assertEqual(status["roles"]["risk"]["state"], "capacity_error")
+            self.assertEqual(status["roles"]["risk"]["attempts"][0]["attempt"], 1)
+            self.assertEqual(status["roles"]["risk"]["attempts"][0]["agent"], "reviewer-1")
+            self.assertIn("started_at", status["roles"]["risk"]["attempts"][0])
+            self.assertIn("finished_at", status["roles"]["risk"]["attempts"][1])
+
+    def test_empty_reviewer_artifact_reports_interrupted_write(self) -> None:
+        module = load_prepare_review_module()
+
+        with tempfile.TemporaryDirectory() as tmp:
+            artifact = Path(tmp) / "quality-tests.json"
+            artifact.write_text("", encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "empty or interrupted"):
+                module.load_json_object(artifact)
+
+    def test_reviewer_attempt_is_published_atomically_without_losing_retry_history(self) -> None:
+        module = load_prepare_review_module()
+
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            git(repo, "init")
+            git(repo, "config", "user.email", "test@example.com")
+            git(repo, "config", "user.name", "Test")
+            (repo / "README.md").write_text("fixture\n", encoding="utf-8")
+            git(repo, "add", ".")
+            git(repo, "commit", "-m", "base")
+            result = module.prepare_review(
+                repo=repo,
+                run_id="publish-attempt",
+                iteration=1,
+                base=None,
+                mode="review-only",
+                task_contract="",
+            )
+            artifact_dir = Path(result["artifact_dir"])
+            results_dir = artifact_dir / "results"
+            canonical = results_dir / "risk.json"
+            canonical.write_text('{"invalid": true}', encoding="utf-8")
+            attempt = results_dir / "risk.attempt-1.tmp.json"
+            attempt.write_text(
+                json.dumps({"role": "risk", "findings": [], "security_coverage": []}),
+                encoding="utf-8",
+            )
+
+            published = module.publish_reviewer_artifact(artifact_dir, "risk", 1)
+
+            self.assertTrue(published["valid"])
+            self.assertEqual(published["attempt"], 1)
+            self.assertTrue((results_dir / "risk.attempt-1.json").is_file())
+            self.assertEqual(json.loads(canonical.read_text(encoding="utf-8"))["role"], "risk")
+            self.assertTrue(list(results_dir.glob("risk.rejected-*.json")))
+
+            canonical_bytes = canonical.read_bytes()
+            good_attempt = results_dir / "risk.attempt-2.tmp.json"
+            good_attempt.write_text(
+                json.dumps({"role": "risk", "findings": [], "security_coverage": []}),
+                encoding="utf-8",
+            )
+            cli = subprocess.run(
+                [sys.executable, str(SCRIPT_PATH), "--publish-reviewer-artifact", "--artifact-dir", str(artifact_dir),
+                 "--role", "risk", "--attempt", "2"],
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(cli.returncode, 0)
+            self.assertTrue((results_dir / "risk.attempt-2.json").is_file())
+
+            bad_attempt = results_dir / "risk.attempt-3.tmp.json"
+            bad_attempt.write_text(
+                json.dumps({"role": "risk", "findings": [42], "security_coverage": []}),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(ValueError, "must be an object"):
+                module.publish_reviewer_artifact(artifact_dir, "risk", 3)
+            self.assertEqual(canonical.read_bytes(), canonical_bytes)
+            self.assertTrue(bad_attempt.is_file())
+
+            duplicate_attempt = results_dir / "risk.attempt-1.tmp.json"
+            duplicate_attempt.write_text(
+                json.dumps({"role": "risk", "findings": [], "security_coverage": []}),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(ValueError, "already exists"):
+                module.publish_reviewer_artifact(artifact_dir, "risk", 1)
+            self.assertTrue(duplicate_attempt.is_file())
+            self.assertEqual(
+                json.loads((results_dir / "risk.attempt-1.json").read_text(encoding="utf-8"))["role"],
+                "risk",
+            )
+
+    def test_reviewer_validation_aggregates_errors_for_all_roles(self) -> None:
+        module = load_prepare_review_module()
+
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            git(repo, "init")
+            git(repo, "config", "user.email", "test@example.com")
+            git(repo, "config", "user.name", "Test")
+            (repo / "README.md").write_text("fixture\n", encoding="utf-8")
+            git(repo, "add", ".")
+            git(repo, "commit", "-m", "base")
+            result = module.prepare_review(
+                repo=repo,
+                run_id="aggregate-reviewer-errors",
+                iteration=1,
+                base=None,
+                mode="review-only",
+                task_contract="",
+            )
+            artifact_dir = Path(result["artifact_dir"])
+            (artifact_dir / "results" / "requirements-correctness.json").write_text(
+                json.dumps({
+                    "role": "requirements-correctness",
+                    "findings": [],
+                    "requirements_status": "unverifiable",
+                    "requirements_matrix": [],
+                }),
+                encoding="utf-8",
+            )
+            (artifact_dir / "results" / "risk.json").write_text(
+                json.dumps({
+                    "role": "risk",
+                    "findings": [{"id": "R-1", "severity": "High", "confidence": "High", "impact": "Low",
+                                  "category": "correctness", "location": " ", "change_causality": "changed",
+                                  "trigger_or_scenario": "trigger", "evidence": "evidence", "recommended_fix": "fix"}],
+                    "security_coverage": [],
+                }),
+                encoding="utf-8",
+            )
+            (artifact_dir / "results" / "quality-tests.json").write_text(
+                json.dumps({
+                    "role": "quality-tests",
+                    "findings": [],
+                    "behavior_test_matrix": [{"behavior": "returns", "test": "test_returns",
+                                               "assertion_or_gap": "asserts", "status": "covered"}],
+                }),
+                encoding="utf-8",
+            )
+
+            report = module.validate_artifacts(artifact_dir, "reviewers", aggregate=True)
+
+            self.assertFalse(report["valid"])
+            self.assertEqual(set(report["reviewers"]), {"requirements-correctness", "risk", "quality-tests"})
+            self.assertTrue(report["reviewers"]["requirements-correctness"]["valid"])
+            self.assertTrue(any("$.findings[0].location" in error for error in report["reviewers"]["risk"]["errors"]))
+            self.assertTrue(any("behavior_test_matrix[0].status" in error for error in report["reviewers"]["quality-tests"]["errors"]))
+
+            cli = subprocess.run(
+                [sys.executable, str(SCRIPT_PATH), "--validate-artifact-dir", str(artifact_dir), "--validate-phase", "reviewers"],
+                capture_output=True,
+                text=True,
+            )
+            self.assertNotEqual(cli.returncode, 0)
+            cli_report = json.loads(cli.stdout)
+            self.assertFalse(cli_report["valid"])
+            self.assertIn("risk", cli_report["reviewers"])
+
+    def test_reviewer_validation_reports_later_invalid_attempt_after_valid_canonical(self) -> None:
+        module = load_prepare_review_module()
+
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            git(repo, "init")
+            git(repo, "config", "user.email", "test@example.com")
+            git(repo, "config", "user.name", "Test")
+            (repo / "README.md").write_text("fixture\n", encoding="utf-8")
+            git(repo, "add", ".")
+            git(repo, "commit", "-m", "base")
+            result = module.prepare_review(
+                repo=repo,
+                run_id="later-invalid-attempt",
+                iteration=1,
+                base=None,
+                mode="review-only",
+                task_contract="",
+            )
+            artifact_dir = Path(result["artifact_dir"])
+            valid = {"role": "risk", "findings": [], "security_coverage": []}
+            (artifact_dir / "results" / "risk.json").write_text(json.dumps(valid), encoding="utf-8")
+            (artifact_dir / "results" / "risk.attempt-2.json").write_text(
+                json.dumps({"role": "risk", "findings": [42], "security_coverage": []}),
+                encoding="utf-8",
+            )
+            for role, value in {
+                "requirements-correctness": {
+                    "role": "requirements-correctness", "findings": [],
+                    "requirements_status": "unverifiable", "requirements_matrix": [],
+                },
+                "quality-tests": {"role": "quality-tests", "findings": [], "behavior_test_matrix": []},
+            }.items():
+                (artifact_dir / "results" / f"{role}.json").write_text(json.dumps(value), encoding="utf-8")
+
+            report = module.validate_artifacts(artifact_dir, "reviewers", aggregate=True)
+
+            self.assertTrue(report["reviewers"]["risk"]["valid"])
+            self.assertTrue(any("$.findings[0]" in error for error in report["reviewers"]["risk"]["attempt_errors"]))
+
+    def test_patch_only_fixer_requires_a_scoped_patch_artifact(self) -> None:
+        module = load_prepare_review_module()
+
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            git(repo, "init")
+            git(repo, "config", "user.email", "test@example.com")
+            git(repo, "config", "user.name", "Test")
+            (repo / "README.md").write_text("fixture\n", encoding="utf-8")
+            git(repo, "add", ".")
+            git(repo, "commit", "-m", "base")
+            result = module.prepare_review(
+                repo=repo,
+                run_id="patch-only-fixer",
+                iteration=1,
+                base=None,
+                mode="review-and-fix",
+                task_contract="",
+            )
+            artifact_dir = Path(result["artifact_dir"])
+            finding = {
+                "id": "F-1", "severity": "High", "confidence": "High", "impact": "Low",
+                "category": "correctness", "location": "README.md:1", "change_causality": "changed",
+                "trigger_or_scenario": "trigger", "evidence": "evidence", "recommended_fix": "fix",
+            }
+            (artifact_dir / "summary.json").write_text(json.dumps({"fix_candidates": [finding]}), encoding="utf-8")
+
+            fixes = {"fixed": [{"id": "F-1", "files": ["README.md"], "evidence": "fixed"}],
+                     "blocked": [], "commands": [], "skipped": []}
+            (artifact_dir / "fixes.json").write_text(json.dumps(fixes), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "patch_path"):
+                module.validate_artifacts(artifact_dir, "fixes")
+
+            empty_fixes = {"fixed": [], "blocked": [], "commands": [], "skipped": []}
+            (artifact_dir / "fixes.json").write_text(json.dumps(empty_fixes), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "patch_path"):
+                module.validate_artifacts(artifact_dir, "fixes")
+            empty_patch = artifact_dir / "empty.patch"
+            empty_patch.write_text("", encoding="utf-8")
+            empty_fixes["patch_path"] = "empty.patch"
+            (artifact_dir / "fixes.json").write_text(json.dumps(empty_fixes), encoding="utf-8")
+            self.assertTrue(module.validate_artifacts(artifact_dir, "fixes")["valid"])
+
+            (artifact_dir / "fixes.json").write_text(json.dumps(fixes), encoding="utf-8")
+
+            patch_path = artifact_dir / "fix.patch"
+            patch_path.write_text(
+                "diff --git a/other.txt b/other.txt\n"
+                "--- a/other.txt\n+++ b/other.txt\n"
+                "@@ -1 +1 @@\n-old\n+new\n",
+                encoding="utf-8",
+            )
+            fixes["patch_path"] = "fix.patch"
+            (artifact_dir / "fixes.json").write_text(json.dumps(fixes), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "does not match declared files"):
+                module.validate_artifacts(artifact_dir, "fixes")
+
+            patch_path.write_text(
+                "diff --git a/README.md b/README.md\n"
+                "--- a/README.md\n+++ b/README.md\n"
+                "@@ -1 +1 @@\n-fixture\n+updated\n",
+                encoding="utf-8",
+            )
+            self.assertTrue(module.validate_artifacts(artifact_dir, "fixes")["valid"])
+            fixes["fixed"][0]["files"] = [".\\README.md" if os.name == "nt" else "./README.md"]
+            (artifact_dir / "fixes.json").write_text(json.dumps(fixes), encoding="utf-8")
+            self.assertTrue(module.validate_artifacts(artifact_dir, "fixes")["valid"])
+            finding["impact"] = "High"
+            (artifact_dir / "summary.json").write_text(json.dumps({"fix_candidates": [finding]}), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "high-impact"):
+                module.validate_artifacts(artifact_dir, "fixes")
+            (repo / "README.md").write_text("unauthorized\n", encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "worktree changed"):
+                module.validate_artifacts(artifact_dir, "fixes")
 
     def test_verification_policy_defaults_to_trusted_full_access_and_keeps_no_exec_fallback(self) -> None:
         module = load_prepare_review_module()
@@ -1925,7 +2249,13 @@ class ReviewFinalContractTests(unittest.TestCase):
         directory = self.prepare(verification_policy="no-exec")
         self.complete(directory, [finding_item()])
         fixes = {"fixed": [{"id": "risk-1", "files": ["README.md"], "evidence": "static fix"}],
-                 "blocked": [], "commands": [], "skipped": []}
+                 "blocked": [], "commands": [], "skipped": [], "patch_path": "fix.patch"}
+        (directory / "fix.patch").write_text(
+            "diff --git a/README.md b/README.md\n"
+            "--- a/README.md\n+++ b/README.md\n"
+            "@@ -1 +1 @@\n-fixture\n+updated\n",
+            encoding="utf-8",
+        )
         write_json(directory / "fixes.json", fixes)
         self.assertTrue(self.module.validate_artifacts(directory, "fixes")["valid"])
         command = {"command": "fixture-check", "exit_code": 0, "status": "passed", "required": True,
@@ -1995,6 +2325,16 @@ class ReviewFinalContractTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "reviewer finding|synthesis"):
             self.module.validate_artifacts(directory, "final")
 
+    def test_final_rejects_fabricated_fix_candidate(self) -> None:
+        directory = self.prepare()
+        summary = self.complete(directory, [finding_item()])
+        summary["fix_candidates"] = [
+            {**finding_item(id="fabricated"), "category": "correctness"}
+        ]
+        write_json(directory / "summary.json", summary)
+        with self.assertRaisesRegex(ValueError, "fix candidate|reviewer finding|synthesis"):
+            self.module.validate_artifacts(directory, "final")
+
     def test_final_requires_security_validation_for_security_findings(self) -> None:
         directory = self.prepare()
         security_finding = finding_item(
@@ -2046,7 +2386,14 @@ class ReviewFinalContractTests(unittest.TestCase):
         self.assertEqual(result["status"], "continue")
         self.assertEqual(result["counts"]["security_confirmed"], 1)
 
-        fixes = {"fixed": [{"id": "risk-1", "files": ["README.md"], "evidence": "fixed"}], "blocked": []}
+        fixes = {"fixed": [{"id": "risk-1", "files": ["README.md"], "evidence": "fixed"}],
+                 "blocked": [], "patch_path": "fix.patch"}
+        (directory / "fix.patch").write_text(
+            "diff --git a/README.md b/README.md\n"
+            "--- a/README.md\n+++ b/README.md\n"
+            "@@ -1 +1 @@\n-fixture\n+updated\n",
+            encoding="utf-8",
+        )
         write_json(directory / "fixes.json", fixes)
         self.assertTrue(self.module.validate_artifacts(directory, "fixes")["valid"])
         verification["security_checks"][0]["status"] = "needs_validation"
@@ -2064,6 +2411,16 @@ class ReviewFinalContractTests(unittest.TestCase):
         summary["warnings"][0]["rationale"] = "impact only concerns optional diagnostics"
         write_json(directory / "summary.json", summary)
         self.assertEqual(self.module.validate_artifacts(directory, "final")["status"], "converged")
+
+    def test_final_keeps_retained_high_impact_warning_blocked(self) -> None:
+        directory = self.prepare()
+        high = finding_item(id="risk-high", impact="High")
+        summary = self.complete(directory, [high])
+        summary.update(blockers=[], fix_candidates=[], warnings=[{**high, "rationale": "explained"}])
+        write_json(directory / "summary.json", summary)
+        result = self.module.validate_artifacts(directory, "final")
+        self.assertEqual((result["status"], result["stop_reason"]), ("blocked", "high_impact_requires_separate_implementation"))
+        self.assertFalse(result["merge_ready"])
 
     def test_final_returns_continue_even_when_required_check_failed(self) -> None:
         directory = self.prepare()
