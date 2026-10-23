@@ -20,21 +20,19 @@ npx skills add ichuan/skills
 npx skills add ichuan/skills --skill roadmap-management
 npx skills add ichuan/skills --skill iterative-code-review
 npx skills add ichuan/skills --skill deploy-caddy-reverse-proxy
-npx skills add ichuan/skills --skill searxng-search
-npx skills add ichuan/skills --skill crawl4ai-fetch
 npx skills add ichuan/skills --skill repo-deploy-capture
 npx skills add ichuan/skills --skill prod-readiness-audit
 npx skills add ichuan/skills --skill multi-agent-review
+npx skills add ichuan/skills --skill web-search-fetch
 
 # 全局安装（在所有项目中可用）
 npx skills add ichuan/skills --skill roadmap-management --global
 npx skills add ichuan/skills --skill iterative-code-review --global
 npx skills add ichuan/skills --skill deploy-caddy-reverse-proxy --global
-npx skills add ichuan/skills --skill searxng-search --global
-npx skills add ichuan/skills --skill crawl4ai-fetch --global
 npx skills add ichuan/skills --skill repo-deploy-capture --global
 npx skills add ichuan/skills --skill prod-readiness-audit --global
 npx skills add ichuan/skills --skill multi-agent-review --global
+npx skills add ichuan/skills --skill web-search-fetch --global
 ```
 
 ### 手动安装
@@ -47,22 +45,20 @@ git clone https://github.com/ichuan/skills.git
 cp -r skills/skills/roadmap-management ~/.claude/skills/
 cp -r skills/skills/iterative-code-review ~/.claude/skills/
 cp -r skills/skills/deploy-caddy-reverse-proxy ~/.claude/skills/
-cp -r skills/skills/searxng-search ~/.claude/skills/
-cp -r skills/skills/crawl4ai-fetch ~/.claude/skills/
 cp -r skills/skills/repo-deploy-capture ~/.claude/skills/
 cp -r skills/skills/prod-readiness-audit ~/.claude/skills/
 cp -r skills/skills/multi-agent-review ~/.claude/skills/
+cp -r skills/skills/web-search-fetch ~/.claude/skills/
 
 # 或复制到项目本地目录
 mkdir -p ./.claude/skills
 cp -r skills/skills/roadmap-management ./.claude/skills/
 cp -r skills/skills/iterative-code-review ./.claude/skills/
 cp -r skills/skills/deploy-caddy-reverse-proxy ./.claude/skills/
-cp -r skills/skills/searxng-search ./.claude/skills/
-cp -r skills/skills/crawl4ai-fetch ./.claude/skills/
 cp -r skills/skills/repo-deploy-capture ./.claude/skills/
 cp -r skills/skills/prod-readiness-audit ./.claude/skills/
 cp -r skills/skills/multi-agent-review ./.claude/skills/
+cp -r skills/skills/web-search-fetch ./.claude/skills/
 ```
 
 ## Skills 详情
@@ -153,122 +149,29 @@ cp -r skills/skills/multi-agent-review ./.claude/skills/
 
 ---
 
-### searxng-search
+### web-search-fetch
 
-通过自托管的 [SearXNG](https://github.com/searxng/searxng) 聚合搜索服务器进行网页搜索。
+面向 AI Agent 的网页搜索与 URL 抓取。搜索后端可配置且对调用方透明；抓取用纯 HTTP 加本地 HTML 转 Markdown 转换器，零依赖。
 
 **适用场景：**
-- 在 AI Agent 中直接搜索网络
-- 研究话题、查找 URL、在线查询信息
-- 自托管、保护隐私的商业搜索 API 替代方案
+- 搜索网页、查找 URL、调研话题
+- 读取/抓取/总结网页并转成干净的 Markdown
+- 更换搜索后端（当前为 brave，以后可换）而不改变调用方式
 
 **功能特性：**
-- 🔍 **NDJSON 输出**：每行一条结构化 `{url, title, snippet}` 结果
-- 🔑 **Bearer 认证支持**：可为受保护实例配置 token
-- 📄 **分页支持**：`--page` / `--limit` 参数获取更多结果
-- 🗂️ **`.env` 自动加载**：若环境变量未设置，自动从项目根目录的 `.env` 读取 `SEARXNG_URL` / `SEARXNG_TOKEN`
+- 🔍 **搜索**：NDJSON 输出，每行一条 `{url, title, snippet}` 结果，支持 `--limit`
+- 📄 **抓取**：本地纯标准库的 HTML 转 Markdown 转换器，默认只保留正文（剥离导航、分享链接、相关推荐等），`--full` 输出整页，相对链接按最终 URL 解析
+- 🔌 **Provider 层**：通过 `WEBSEARCH_PROVIDER` 选择后端，调用方无感知
+- 🗂️ **`.env` 自动加载**：从项目根目录 `.env` 读取 `WEBSEARCH_PROVIDER` / `WEBSEARCH_API_KEY`
+- ⚠️ **JS 页面检测**：抓取内容近乎为空时给出警告，并提示改用 agent-browser skill
 
 **使用示例：**
 ```
 "搜索 Python 3.13 最新发布说明"
-"查找 Caddy 服务器的文档"
-"搜索 LLM 基准测试最新动态"
-```
-
-**详情：** 见 [skills/searxng-search](./skills/searxng-search)
-
-#### 使用 Caddy Bearer Auth 部署 SearXNG
-
-SearXNG 本身不带认证功能。以下 Caddy 配置片段为实例添加 Bearer token 认证：
-
-```caddy
-# Caddyfile
-
-(auth_bearer) {
-    handle {
-        @valid_token header Authorization "Bearer {args[0]}"
-        route @valid_token {
-            reverse_proxy {args[1]} {
-                header_up Host {http.reverse_proxy.upstream.hostport}
-            }
-        }
-
-        @invalid_token not header Authorization "Bearer {args[0]}"
-        respond @invalid_token "Unauthorized" 401
-    }
-}
-
-search.example.com {
-    encode gzip
-    import auth_bearer YOUR_SECRET_TOKEN http://127.0.0.1:8001
-}
-```
-
-将 `search.example.com`、`YOUR_SECRET_TOKEN` 和 `http://127.0.0.1:8001`（SearXNG 监听地址）替换为你自己的值，Caddy 会自动申请 Let's Encrypt TLS 证书。
-
-然后配置 skill：
-
-```
-# .env（项目根目录）
-SEARXNG_URL=https://search.example.com
-SEARXNG_TOKEN=YOUR_SECRET_TOKEN
-```
-
----
-
-### crawl4ai-fetch
-
-通过自托管的 [crawl4ai](https://github.com/unclecode/crawl4ai) 服务器将任意 URL 转换为干净的 Markdown。
-
-**适用场景：**
-- 为 LLM 读取和总结网页内容
-- 将文章或文档内容提取为 Markdown
-- 抓取普通 HTTP 客户端无法读取的 JavaScript 渲染页面
-
-**功能特性：**
-- 📄 **Markdown 输出**：将任意 URL 转换为 LLM 友好的干净 Markdown
-- 🎯 **过滤模式**：`fit`（智能提取）、`raw`（完整页面）、`bm25`（相关性过滤）
-- 🔑 **Bearer 认证支持**：可为受保护实例配置 token
-- 🗂️ **`.env` 自动加载**：若环境变量未设置，自动从项目根目录的 `.env` 读取 `CRAWL4AI_URL` / `CRAWL4AI_TOKEN`
-
-**使用示例：**
-```
 "抓取 https://docs.example.com/api 并总结内容"
-"获取这篇新闻文章的内容：https://..."
-"读取这个页面并回答我关于它的问题"
 ```
 
-**详情：** 见 [skills/crawl4ai-fetch](./skills/crawl4ai-fetch)
-
-#### 使用 Caddy Bearer Auth 部署 crawl4ai
-
-启动 crawl4ai Docker 容器：
-
-```bash
-docker stop crawl4ai
-docker run --rm -itd \
-  -p 8002:11235 \
-  --name crawl4ai \
-  --shm-size=1g \
-  unclecode/crawl4ai:latest
-```
-
-在 Caddyfile 中复用上方 SearXNG 的 `auth_bearer` 片段，添加站点块：
-
-```caddy
-crawl.example.com {
-    encode gzip
-    import auth_bearer YOUR_SECRET_TOKEN http://127.0.0.1:8002
-}
-```
-
-配置 skill：
-
-```
-# .env（项目根目录）
-CRAWL4AI_URL=https://crawl.example.com
-CRAWL4AI_TOKEN=YOUR_SECRET_TOKEN
-```
+**详情：** 见 [skills/web-search-fetch](./skills/web-search-fetch)
 
 ### repo-deploy-capture
 
@@ -389,11 +292,10 @@ CRAWL4AI_TOKEN=YOUR_SECRET_TOKEN
 # 重新安装即可更新
 npx skills add ichuan/skills --skill roadmap-management
 npx skills add ichuan/skills --skill iterative-code-review
-npx skills add ichuan/skills --skill searxng-search
-npx skills add ichuan/skills --skill crawl4ai-fetch
 npx skills add ichuan/skills --skill repo-deploy-capture
 npx skills add ichuan/skills --skill prod-readiness-audit
 npx skills add ichuan/skills --skill multi-agent-review
+npx skills add ichuan/skills --skill web-search-fetch
 ```
 
 ### 卸载 Skills
@@ -403,21 +305,19 @@ npx skills add ichuan/skills --skill multi-agent-review
 rm -rf ~/.claude/skills/roadmap-management
 rm -rf ~/.claude/skills/iterative-code-review
 rm -rf ~/.claude/skills/deploy-caddy-reverse-proxy
-rm -rf ~/.claude/skills/searxng-search
-rm -rf ~/.claude/skills/crawl4ai-fetch
 rm -rf ~/.claude/skills/repo-deploy-capture
 rm -rf ~/.claude/skills/prod-readiness-audit
 rm -rf ~/.claude/skills/multi-agent-review
+rm -rf ~/.claude/skills/web-search-fetch
 
 # 本地卸载
 rm -rf ./.claude/skills/roadmap-management
 rm -rf ./.claude/skills/iterative-code-review
 rm -rf ./.claude/skills/deploy-caddy-reverse-proxy
-rm -rf ./.claude/skills/searxng-search
-rm -rf ./.claude/skills/crawl4ai-fetch
 rm -rf ./.claude/skills/repo-deploy-capture
 rm -rf ./.claude/skills/prod-readiness-audit
 rm -rf ./.claude/skills/multi-agent-review
+rm -rf ./.claude/skills/web-search-fetch
 ```
 
 ## 许可证
