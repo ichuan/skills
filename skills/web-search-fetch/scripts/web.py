@@ -81,6 +81,14 @@ def _load_dotenv() -> None:
                 os.environ[key] = val
 
 
+def _configure_output_encoding() -> None:
+    """Keep CLI output UTF-8 even when Windows inherits a legacy code page."""
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is not None:
+            reconfigure(encoding="utf-8")
+
+
 def _die(message: str, code: int = 1) -> None:
     print(f"[error] {message}", file=sys.stderr)
     sys.exit(code)
@@ -303,6 +311,7 @@ def run_fetch(url: str, timeout: int, max_bytes: int, raw: bool, main_content: b
 # ---------------------------------------------------------------------------
 
 def main() -> None:
+    _configure_output_encoding()
     _load_dotenv()
 
     parser = argparse.ArgumentParser(description="Web search + URL fetch")

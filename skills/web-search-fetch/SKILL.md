@@ -5,7 +5,21 @@ description: Web search and URL fetch for AI agents. Use when the user asks to s
 
 # Web Search & Fetch
 
-Use `scripts/web.py` with two subcommands:
+Run the commands from the skill directory, the directory containing this file:
+
+```bash
+cd path/to/web-search-fetch
+python3 scripts/web.py search "python 3.13 release notes" --limit 5
+```
+
+On Windows, use the equivalent path syntax:
+
+```powershell
+cd path\to\web-search-fetch
+py scripts\web.py search "python 3.13 release notes" --limit 5
+```
+
+The script has two subcommands:
 
 - `search <query>` — web search, prints one JSON result per line: `{"url", "title", "snippet"}`
 - `fetch <url>` — fetch a URL and print the page as Markdown (title and warnings go to stderr)
@@ -13,10 +27,6 @@ Use `scripts/web.py` with two subcommands:
 The user never needs to know which search backend is in use; both subcommands take plain queries/URLs.
 
 ## Search
-
-```bash
-python3 scripts/web.py search "python 3.13 release notes" --limit 5
-```
 
 - Output is NDJSON; each line is one result with `url`, `title`, `snippet`.
 - `--limit N` caps the number of results (default 8, max 20).
@@ -26,7 +36,6 @@ python3 scripts/web.py search "python 3.13 release notes" --limit 5
 ```bash
 python3 scripts/web.py fetch https://www.example.com/news/story
 ```
-
 - By default only the **main content** is kept: the converter locates the article body and drops navigation, share links, related/popular lists, promos, cookie banners and hidden elements. Headings, paragraphs, lists, code blocks, links, images and tables are preserved, and relative URLs are resolved against the final page URL.
 - `--full` converts the whole page instead. Main-content extraction assumes an article-style page; on list/index pages (homepages, category feeds, link directories) it can prune the headline list too. If the output looks too short or is missing what you came for, judge from the content and retry once with `--full`.
 - `--raw` prints the unconverted response body (useful for JSON/plain-text endpoints).
