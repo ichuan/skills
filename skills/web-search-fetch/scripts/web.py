@@ -10,8 +10,10 @@ Config (highest priority first):
     1. Environment variables
     2. .env file in the current working directory
 
-    WEBSEARCH_PROVIDER - search backend to use (default: brave)
-    WEBSEARCH_API_KEY  - API key for the search backend (brave also accepts BRAVE_API_KEY)
+    BRAVE_API_KEY     - Brave API key (preferred provider when set)
+    WEBSEARCH_API_KEY - legacy alias for BRAVE_API_KEY
+    RUSTXNG_URL       - RustXNG instance base URL, used when no Brave key is set
+    RUSTXNG_TOKEN     - optional RustXNG Bearer token
 
 Output:
     search: NDJSON, one result per line: {"url": ..., "title": ..., "snippet": ...}
@@ -99,7 +101,7 @@ def _die(message: str, code: int = 1) -> None:
 # ---------------------------------------------------------------------------
 
 def brave_search(query: str, limit: int) -> list[dict]:
-    api_key = os.environ.get("WEBSEARCH_API_KEY") or os.environ.get("BRAVE_API_KEY")
+    api_key = os.environ.get("BRAVE_API_KEY") or os.environ.get("WEBSEARCH_API_KEY")
     if not api_key:
         _die(
             "WEBSEARCH_API_KEY (or BRAVE_API_KEY) is not set. "
@@ -118,6 +120,8 @@ def brave_search(query: str, limit: int) -> list[dict]:
         with urllib.request.urlopen(req, timeout=DEFAULT_TIMEOUT) as resp:
             data = json.loads(resp.read())
     except urllib.error.HTTPError as e:
+        if e.code in {402, 429}:
+            raise
         _die(f"Brave search HTTP {e.code}: {e.reason}")
     except urllib.error.URLError as e:
         _die(f"Brave search request failed: {e.reason}")
@@ -134,18 +138,63 @@ def brave_search(query: str, limit: int) -> list[dict]:
     return results
 
 
-SEARCH_PROVIDERS = {"brave": brave_search}
+class _NoSearchRedirects(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        # Never forward a private instance's credentials to a redirect target.
+        return None
+
+
+def rustxng_search(query: str, limit: int) -> list[dict]:
+    base_url = os.environ.get("RUSTXNG_URL", "").strip().rstrip("/")
+    parsed = urllib.parse.urlsplit(base_url)
+    if (parsed.scheme not in {"http", "https"} or not parsed.hostname
+            or parsed.username is not None or parsed.password is not None
+            or parsed.query or parsed.fragment):
+        _die("RUSTXNG_URL must be an HTTP(S) base URL without credentials, query or fragment.")
+
+    params = urllib.parse.urlencode({"q": query, "format": "json", "max_results": min(limit, 20)})
+    headers = {"Accept": "application/json"}
+    token = os.environ.get("RUSTXNG_TOKEN")
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    req = urllib.request.Request(f"{base_url}/search?{params}", headers=headers)
+    opener = urllib.request.build_opener(_NoSearchRedirects())
+    try:
+        with opener.open(req, timeout=DEFAULT_TIMEOUT) as resp:
+            data = json.loads(resp.read())
+    except urllib.error.HTTPError as e:
+        _die(f"RustXNG search HTTP {e.code}: {e.reason}")
+    except urllib.error.URLError as e:
+        _die(f"RustXNG search request failed: {e.reason}")
+    except (ValueError, UnicodeDecodeError):
+        _die("RustXNG search returned invalid JSON.")
+
+    if not isinstance(data, dict) or not isinstance(data.get("results"), list):
+        _die("RustXNG search response must contain a results list.")
+    results = []
+    for r in data["results"][:limit]:
+        if not isinstance(r, dict):
+            _die("RustXNG search returned an invalid result.")
+        results.append({
+            "url": r.get("url", ""),
+            "title": r.get("title", ""),
+            "snippet": r.get("content", ""),
+        })
+    return results
 
 
 def run_search(query: str, limit: int) -> list[dict]:
-    provider = os.environ.get("WEBSEARCH_PROVIDER", "brave").strip().lower()
-    fn = SEARCH_PROVIDERS.get(provider)
-    if fn is None:
-        _die(
-            f"Unknown WEBSEARCH_PROVIDER: {provider!r} "
-            f"(available: {', '.join(sorted(SEARCH_PROVIDERS))})"
-        )
-    return fn(query, limit)
+    if os.environ.get("BRAVE_API_KEY") or os.environ.get("WEBSEARCH_API_KEY"):
+        try:
+            return brave_search(query, limit)
+        except urllib.error.HTTPError as e:
+            if not os.environ.get("RUSTXNG_URL", "").strip():
+                _die(f"Brave search HTTP {e.code}: {e.reason}; RUSTXNG_URL is not set.")
+            print(f"[warn] Brave search HTTP {e.code}; falling back to RustXNG.", file=sys.stderr)
+            return rustxng_search(query, limit)
+    if os.environ.get("RUSTXNG_URL", "").strip():
+        return rustxng_search(query, limit)
+    _die("Set BRAVE_API_KEY or RUSTXNG_URL in the environment or .env in the working directory.")
 
 
 # ---------------------------------------------------------------------------

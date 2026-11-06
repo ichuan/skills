@@ -6,7 +6,11 @@ import io
 import json
 import os
 import unittest
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from threading import Thread
+from unittest.mock import patch
+from urllib.parse import parse_qs, urlsplit
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -236,15 +240,9 @@ class HtmlToMarkdownTests(unittest.TestCase):
 class BraveSearchTests(unittest.TestCase):
     def setUp(self):
         self.web = load_web_module()
-        self._env = os.environ.get("WEBSEARCH_API_KEY")
-        self._brave_env = os.environ.get("BRAVE_API_KEY")
-
-    def tearDown(self):
-        for key, value in (("WEBSEARCH_API_KEY", self._env), ("BRAVE_API_KEY", self._brave_env)):
-            if value is None:
-                os.environ.pop(key, None)
-            else:
-                os.environ[key] = value
+        self.env_patch = patch.dict(os.environ, {}, clear=True)
+        self.env_patch.start()
+        self.addCleanup(self.env_patch.stop)
 
     def test_missing_api_key_exits_with_error(self):
         os.environ.pop("WEBSEARCH_API_KEY", None)
@@ -286,13 +284,135 @@ class BraveSearchTests(unittest.TestCase):
             ],
         )
 
-    def test_unknown_provider_exits_with_error(self):
-        os.environ["WEBSEARCH_PROVIDER"] = "nope"
-        try:
-            with self.assertRaises(SystemExit):
-                self.web.run_search("query", 5)
-        finally:
-            del os.environ["WEBSEARCH_PROVIDER"]
+    def test_missing_provider_configuration_exits_with_error(self):
+        with self.assertRaises(SystemExit):
+            self.web.run_search("query", 5)
+
+    def test_brave_key_takes_priority_over_alias_and_rustxng(self):
+        os.environ.update(BRAVE_API_KEY="brave-key", WEBSEARCH_API_KEY="legacy-key",
+                          RUSTXNG_URL="https://unused.example")
+        def respond(req, timeout=None):
+            self.assertEqual(req.get_header("X-subscription-token"), "brave-key")
+            return FakeResponse(b'{"web":{"results":[]}}')
+        with patch.object(self.web.urllib.request, "urlopen", side_effect=respond):
+            self.assertEqual(self.web.run_search("query", 5), [])
+
+
+class RustXNGSearchTests(unittest.TestCase):
+    def setUp(self):
+        self.web = load_web_module()
+        env = patch.dict(os.environ, {}, clear=True)
+        env.start()
+        self.addCleanup(env.stop)
+        self.requests = []
+        self.status = 200
+        self.brave_status = 429
+        self.payload = {"results": [{"url": "https://example.com", "title": "Example", "content": "Snippet"}]}
+        case = self
+        class Handler(BaseHTTPRequestHandler):
+            def do_GET(self):
+                case.requests.append((self.path, self.headers.get("Authorization")))
+                if self.path.startswith("/brave?"):
+                    self.send_response(case.brave_status)
+                    self.end_headers()
+                    self.wfile.write(b'{"error":"quota exceeded"}')
+                    return
+                self.send_response(case.status)
+                if case.status == 302:
+                    self.send_header("Location", "/redirect-target")
+                self.end_headers()
+                self.wfile.write(json.dumps(case.payload).encode())
+            def log_message(self, *args):
+                pass
+        server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        thread = Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        self.addCleanup(server.server_close)
+        self.addCleanup(thread.join)
+        self.addCleanup(server.shutdown)
+        os.environ["RUSTXNG_URL"] = f"http://127.0.0.1:{server.server_port}/instance/"
+
+    def test_brave_quota_errors_fall_back_once(self):
+        os.environ.update(BRAVE_API_KEY="brave-key", RUSTXNG_TOKEN="rust-token")
+        self.web.BRAVE_ENDPOINT = os.environ["RUSTXNG_URL"].removesuffix("instance/") + "brave"
+        for status in (402, 429):
+            with self.subTest(status=status):
+                self.requests.clear()
+                self.brave_status = status
+                result = self.web.run_search("quota test", 3)
+                self.assertEqual(result, [{"url": "https://example.com", "title": "Example", "snippet": "Snippet"}])
+                self.assertEqual(len(self.requests), 2)
+                self.assertTrue(self.requests[0][0].startswith("/brave?"))
+                self.assertEqual(self.requests[1][1], "Bearer rust-token")
+
+    def test_other_brave_errors_do_not_fall_back(self):
+        os.environ["BRAVE_API_KEY"] = "brave-key"
+        self.web.BRAVE_ENDPOINT = os.environ["RUSTXNG_URL"].removesuffix("instance/") + "brave"
+        for status in (401, 403, 500):
+            with self.subTest(status=status):
+                self.requests.clear()
+                self.brave_status = status
+                with self.assertRaises(SystemExit):
+                    self.web.run_search("query", 3)
+                self.assertEqual(len(self.requests), 1)
+
+    def test_quota_error_without_rustxng_reports_failure(self):
+        os.environ["BRAVE_API_KEY"] = "brave-key"
+        self.web.BRAVE_ENDPOINT = os.environ.pop("RUSTXNG_URL").removesuffix("instance/") + "brave"
+        with self.assertRaises(SystemExit):
+            self.web.run_search("query", 3)
+        self.assertEqual(len(self.requests), 1)
+
+    def test_failed_fallback_does_not_loop(self):
+        os.environ["BRAVE_API_KEY"] = "brave-key"
+        self.web.BRAVE_ENDPOINT = os.environ["RUSTXNG_URL"].removesuffix("instance/") + "brave"
+        self.status = 401
+        with self.assertRaises(SystemExit):
+            self.web.run_search("query", 3)
+        self.assertEqual(len(self.requests), 2)
+
+    def test_search_encodes_query_maps_results_and_caps_limit(self):
+        os.environ["RUSTXNG_TOKEN"] = "test-token"
+        result = self.web.run_search("中文 & Rust", 2)
+        self.assertEqual(result, [{"url": "https://example.com", "title": "Example", "snippet": "Snippet"}])
+        path, auth = self.requests[0]
+        self.assertEqual(auth, "Bearer test-token")
+        self.assertEqual(urlsplit(path).path, "/instance/search")
+        self.assertEqual(parse_qs(urlsplit(path).query),
+                         {"q": ["中文 & Rust"], "format": ["json"], "max_results": ["2"]})
+        self.assertEqual(len(self.requests), 1)
+
+    def test_token_is_optional_and_results_are_limited(self):
+        self.payload["results"] *= 3
+        self.assertEqual(len(self.web.run_search("query", 1)), 1)
+        self.assertIsNone(self.requests[0][1])
+
+    def test_empty_results_do_not_trigger_another_request(self):
+        self.payload = {"results": []}
+        self.assertEqual(self.web.run_search("query", 5), [])
+        self.assertEqual(len(self.requests), 1)
+
+    def test_http_errors_and_redirects_do_not_retry(self):
+        for status in (401, 500, 302):
+            with self.subTest(status=status):
+                self.requests.clear()
+                self.status = status
+                with self.assertRaises(SystemExit):
+                    self.web.run_search("query", 5)
+                self.assertEqual(len(self.requests), 1)
+
+    def test_invalid_response_exits(self):
+        self.payload = {"unexpected": []}
+        with self.assertRaises(SystemExit):
+            self.web.run_search("query", 5)
+
+    def test_invalid_base_url_is_rejected_before_request(self):
+        for url in ("file:///etc/passwd", "https://user:pass@example.com", "https://example.com?token=secret"):
+            with self.subTest(url=url):
+                os.environ["RUSTXNG_URL"] = url
+                with self.assertRaises(SystemExit):
+                    self.web.run_search("query", 5)
+        self.assertEqual(self.requests, [])
 
 
 class FetchTests(unittest.TestCase):
@@ -301,8 +421,8 @@ class FetchTests(unittest.TestCase):
 
     def _fetch(self, response: FakeResponse, **kw) -> tuple[str, str]:
         stdout, stderr = io.StringIO(), io.StringIO()
-        self.web.urllib.request.urlopen = lambda req, timeout=None: response
-        with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+        with patch.object(self.web.urllib.request, "urlopen", return_value=response), \
+                contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
             self.web.run_fetch(response.geturl(), timeout=5, max_bytes=65536, raw=False, **kw)
         return stdout.getvalue(), stderr.getvalue()
 
