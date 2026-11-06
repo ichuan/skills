@@ -156,13 +156,13 @@ cp -r skills/skills/web-search-fetch ./.claude/skills/
 **适用场景：**
 - 搜索网页、查找 URL、调研话题
 - 读取/抓取/总结网页并转成干净的 Markdown
-- 更换搜索后端（当前为 brave，以后可换）而不改变调用方式
+- 使用 Brave 或自建 RustXNG，无需改变调用方式
 
 **功能特性：**
 - 🔍 **搜索**：NDJSON 输出，每行一条 `{url, title, snippet}` 结果，支持 `--limit`
 - 📄 **抓取**：本地纯标准库的 HTML 转 Markdown 转换器，默认只保留正文（剥离导航、分享链接、相关推荐等），`--full` 输出整页，相对链接按最终 URL 解析
-- 🔌 **Provider 层**：通过 `WEBSEARCH_PROVIDER` 选择后端，调用方无感知
-- 🗂️ **`.env` 自动加载**：从项目根目录 `.env` 读取 `WEBSEARCH_PROVIDER` / `WEBSEARCH_API_KEY`
+- 🔌 **Provider 层**：优先使用 Brave Key；未配置 Key 或 Brave 返回 HTTP 402/429 时使用 RustXNG，不合并两个后端的结果
+- 🗂️ **`.env` 自动加载**：从当前工作目录 `.env` 读取 `BRAVE_API_KEY`（兼容 `WEBSEARCH_API_KEY`）、`RUSTXNG_URL` 和可选的 `RUSTXNG_TOKEN`
 - ⚠️ **JS 页面检测**：抓取内容近乎为空时给出警告，并提示改用 agent-browser skill
 
 **使用示例：**

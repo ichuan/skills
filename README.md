@@ -150,13 +150,13 @@ Web search and URL fetch for AI agents. The search backend is configurable and i
 **Use Cases:**
 - Search the web, find URLs, research a topic
 - Read/fetch/summarize a webpage as clean Markdown
-- Swap search providers (brave today, others later) without changing how the skill is invoked
+- Use Brave or a self-hosted RustXNG instance without changing how the skill is invoked
 
 **Features:**
 - 🔍 **Search**: NDJSON output with `{url, title, snippet}` per result, `--limit` support
 - 📄 **Fetch**: local stdlib-only HTML-to-Markdown converter; by default only the main article content is kept (nav, share links, related lists dropped), `--full` for the whole page, relative URLs resolved
-- 🔌 **Provider layer**: `WEBSEARCH_PROVIDER` selects the backend; callers never see it
-- 🗂️ **`.env` auto-load**: reads `WEBSEARCH_PROVIDER` / `WEBSEARCH_API_KEY` from `.env` in CWD
+- 🔌 **Provider layer**: Brave keys take priority over `RUSTXNG_URL`; missing keys or Brave HTTP 402/429 use RustXNG, without combining results
+- 🗂️ **`.env` auto-load**: reads `BRAVE_API_KEY` (legacy alias: `WEBSEARCH_API_KEY`), `RUSTXNG_URL` and optional `RUSTXNG_TOKEN` from `.env` in CWD
 - ⚠️ **JS-page detection**: near-empty extractions warn and point to the agent-browser skill
 
 **Usage:**
