@@ -17,7 +17,7 @@ Config (highest priority first):
 
 Output:
     search: NDJSON, one result per line: {"url": ..., "title": ..., "snippet": ...}
-    fetch:  page content converted to Markdown (or raw body with --raw)
+    fetch:  page content converted to Markdown (or decoded text with --raw)
 
 HTML conversion: noise subtrees (nav, script, footer, ...) are stripped by a
 stdlib HTMLParser filter, then the local html2markdown module (same directory)
@@ -376,7 +376,7 @@ def main() -> None:
     p_fetch.add_argument("--max-bytes", type=int, default=DEFAULT_MAX_BYTES)
     p_fetch.add_argument(
         "--raw", action="store_true",
-        help="output the raw response body without HTML conversion",
+        help="decode the response body as text without HTML conversion (not for binary downloads)",
     )
     p_fetch.add_argument(
         "--full", action="store_true",

@@ -40,7 +40,7 @@ python3 scripts/web.py fetch https://www.example.com/news/story
 ```
 - By default only the **main content** is kept: the converter locates the article body and drops navigation, share links, related/popular lists, promos, cookie banners and hidden elements. Headings, paragraphs, lists, code blocks, links, images and tables are preserved, and relative URLs are resolved against the final page URL.
 - `--full` converts the whole page instead. Main-content extraction assumes an article-style page; on list/index pages (homepages, category feeds, link directories) it can prune the headline list too. If the output looks too short or is missing what you came for, judge from the content and retry once with `--full`.
-- `--raw` prints the unconverted response body (useful for JSON/plain-text endpoints).
+- `--raw` skips HTML-to-Markdown conversion and prints the response body decoded as text (useful for HTML/JSON/plain-text endpoints). It does not preserve the original bytes and is not suitable for binary downloads; use `curl` or `wget` for those.
 - `--timeout N` (default 30s) and `--max-bytes N` (default 5 MB) bound the request.
 - Conversion is done by the local `scripts/html2markdown.py` module (stdlib only, no pip install).
 
